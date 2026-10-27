@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../bloc/auth/auth_bloc.dart';
+import '../../bloc/auth/auth_event.dart';
 import '../../models/user_profile.dart';
 import '../../services/auth_service.dart';
 import '../../services/profile_service.dart';
@@ -35,7 +38,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfileData();
+    final blocUser = context.read<AuthBloc?>()?.state.user;
+    if (blocUser != null) {
+      _user = blocUser;
+      _isLoading = false;
+    } else {
+      _loadProfileData();
+    }
   }
 
   Future<void> _loadProfileData() async {
@@ -234,6 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Center(
                 child: TextButton.icon(
                   onPressed: () async {
+                    context.read<AuthBloc?>()?.add(const AuthLogoutRequested());
                     await _authService.logout();
                     if (!context.mounted) return;
                     Navigator.pushAndRemoveUntil(
