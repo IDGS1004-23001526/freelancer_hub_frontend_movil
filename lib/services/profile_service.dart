@@ -52,6 +52,10 @@ class ProfileService {
             : <String, dynamic>{};
         if (payload is Map<String, dynamic>) {
           final remoteProfile = UserProfile.fromJson(payload);
+          final effectiveAvatar = (remoteProfile.avatarUrl != null && remoteProfile.avatarUrl!.isNotEmpty)
+              ? remoteProfile.avatarUrl
+              : cached?.avatarUrl;
+
           final merged = cached != null
               ? remoteProfile.copyWith(
                   firstName: remoteProfile.firstName.isNotEmpty
@@ -73,12 +77,13 @@ class ProfileService {
                   phone: remoteProfile.phone.isNotEmpty
                       ? remoteProfile.phone
                       : cached.phone,
-                  avatarUrl: remoteProfile.avatarUrl ?? cached.avatarUrl,
+                  avatarUrl: effectiveAvatar,
                   skills: remoteProfile.skills.isNotEmpty
                       ? remoteProfile.skills
                       : cached.skills,
                 )
-              : remoteProfile;
+              : remoteProfile.copyWith(avatarUrl: effectiveAvatar);
+
           await _authService.saveUserProfile(merged);
           return merged;
         }

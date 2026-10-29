@@ -7,6 +7,7 @@ import '../../models/user_profile.dart';
 import '../../services/auth_service.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
 import 'edit_profile_screen.dart';
@@ -68,15 +69,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (updated != null && mounted) {
       setState(() => _user = updated);
     }
-  }
-
-  Widget _buildAvatarPlaceholder() {
-    return Container(
-      width: 90,
-      height: 90,
-      color: AppColors.primaryLight,
-      child: const Icon(Icons.person, size: 50, color: AppColors.primary),
-    );
   }
 
   @override
@@ -141,15 +133,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       alignment: Alignment.bottomRight,
                       children: [
                         ClipOval(
-                          child: _user.avatarUrl != null && _user.avatarUrl!.isNotEmpty
-                              ? Image.network(
-                                  _user.avatarUrl!,
-                                  width: 90,
-                                  height: 90,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(),
-                                )
-                              : _buildAvatarPlaceholder(),
+                          child: AvatarImage(
+                            avatarUrl: _user.avatarUrl,
+                            size: 90,
+                          ),
                         ),
                         Container(
                           padding: const EdgeInsets.all(3),

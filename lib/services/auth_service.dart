@@ -41,18 +41,27 @@ class AuthService {
   }
 
   Future<void> saveUserProfile(UserProfile user) async {
+    final cached = await getCachedUserProfile();
+    final effectiveAvatar = (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+        ? user.avatarUrl
+        : cached?.avatarUrl;
+
     await _storage.write(
       key: 'user_profile',
       value: jsonEncode({
         'id': user.id,
+        'firstName': user.firstName,
+        'lastName': user.lastName,
         'fullName': user.fullName,
         'name': user.fullName,
         'email': user.email,
         'role': user.role,
-        'location': user.location,
-        'bio': user.bio,
-        'avatarUrl': user.avatarUrl,
-        'skills': user.skills,
+        'phone': user.phone.isNotEmpty ? user.phone : (cached?.phone ?? ''),
+        'location': user.location.isNotEmpty ? user.location : (cached?.location ?? ''),
+        'bio': user.bio.isNotEmpty ? user.bio : (cached?.bio ?? ''),
+        'avatarUrl': effectiveAvatar,
+        'avatar': effectiveAvatar,
+        'skills': user.skills.isNotEmpty ? user.skills : (cached?.skills ?? []),
       }),
     );
   }
@@ -182,6 +191,9 @@ class AuthService {
               : (cached?.bio.isNotEmpty == true
                   ? cached!.bio
                   : 'Especialista verificado en Freelancer Hub.'),
+          avatarUrl: (rawProfile.avatarUrl != null && rawProfile.avatarUrl!.isNotEmpty)
+              ? rawProfile.avatarUrl
+              : cached?.avatarUrl,
           skills: rawProfile.skills.isNotEmpty
               ? rawProfile.skills
               : (cached?.skills.isNotEmpty == true

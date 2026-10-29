@@ -6,6 +6,7 @@ import '../../models/user_profile.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/form_validators.dart';
+import '../../widgets/avatar_image.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
 
@@ -141,10 +142,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         return;
       }
 
-      // 3. Procesar y subir imagen al backend actualizando la UI sin recargar
+      // 3. Procesar y persistir imagen actualizando la UI de inmediato
       final imageFile = File(file.path);
       setState(() {
         _localImageFile = imageFile;
+        _currentAvatarUrl = imageFile.path;
         _isUploadingAvatar = true;
       });
 
@@ -161,7 +163,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           backgroundColor: Colors.green,
-          content: Text('Foto de perfil actualizada correctamente.'),
+          content: Text('Foto de perfil seleccionada correctamente.'),
           duration: Duration(seconds: 2),
         ),
       );
@@ -221,14 +223,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     setState(() => _isSaving = true);
 
-    String? finalAvatarUrl = _currentAvatarUrl ?? widget.user.avatarUrl;
-
-    if (_localImageFile != null && (_currentAvatarUrl == null || _currentAvatarUrl == widget.user.avatarUrl)) {
-      final uploaded = await _profileService.uploadAvatar(_localImageFile!);
-      if (uploaded != null) {
-        finalAvatarUrl = uploaded;
-      }
-    }
+    final String? finalAvatarUrl = (_currentAvatarUrl != null && _currentAvatarUrl!.isNotEmpty)
+        ? _currentAvatarUrl
+        : (_localImageFile?.path ?? widget.user.avatarUrl);
 
     final String firstName = _firstNameController.text.trim();
     final String lastName = _lastNameController.text.trim();
@@ -272,32 +269,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       );
     }
-  }
-
-  Widget _buildAvatarWidget() {
-    if (_localImageFile != null) {
-      return Image.file(_localImageFile!,
-          width: 110, height: 110, fit: BoxFit.cover);
-    }
-    if (_currentAvatarUrl != null && _currentAvatarUrl!.isNotEmpty) {
-      return Image.network(
-        _currentAvatarUrl!,
-        width: 110,
-        height: 110,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildPlaceholder(),
-      );
-    }
-    return _buildPlaceholder();
-  }
-
-  Widget _buildPlaceholder() {
-    return Container(
-      width: 110,
-      height: 110,
-      color: AppColors.primaryLight,
-      child: const Icon(Icons.person, size: 60, color: AppColors.primary),
-    );
   }
 
   @override
@@ -347,7 +318,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 Center(
                   child: Stack(
                     children: [
-                      ClipOval(child: _buildAvatarWidget()),
+                      ClipOval(
+                        child: AvatarImage(
+                          avatarUrl: _currentAvatarUrl ?? widget.user.avatarUrl,
+                          localFile: _localImageFile,
+                          size: 110,
+                        ),
+                      ),
                       if (_isUploadingAvatar)
                         Positioned.fill(
                           child: Container(
