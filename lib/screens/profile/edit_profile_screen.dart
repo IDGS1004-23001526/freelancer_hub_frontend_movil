@@ -5,13 +5,19 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/user_profile.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/form_validators.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final UserProfile user;
+  final ProfileService? profileService;
 
-  const EditProfileScreen({super.key, required this.user});
+  const EditProfileScreen({
+    super.key,
+    required this.user,
+    this.profileService,
+  });
 
   @override
   State<EditProfileScreen> createState() => _EditProfileScreenState();
@@ -19,66 +25,151 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  final ProfileService _profileService = ProfileService();
+  final ProfileService _defaultProfileService = ProfileService();
+  ProfileService get _profileService => widget.profileService ?? _defaultProfileService;
   final ImagePicker _picker = ImagePicker();
 
-  late TextEditingController _nameController;
+  late TextEditingController _firstNameController;
+  late TextEditingController _lastNameController;
+  late TextEditingController _phoneController;
   late TextEditingController _roleController;
   late TextEditingController _locationController;
   late TextEditingController _bioController;
 
   File? _localImageFile;
+  String? _currentAvatarUrl;
   late List<String> _selectedSkills;
   bool _isSaving = false;
+  bool _isUploadingAvatar = false;
 
-  final List<String> _availableSkills = [
+  final List<String> _freelancerSkills = [
     'Flutter',
     'Dart',
     'UI/UX',
     'Figma',
     'Backend',
-    'SQL',
-    'C# .NET',
+    'PostgreSQL',
     'Node.js',
     'REST APIs',
     'Git',
+    'TypeScript',
+    'Prisma',
+    'Docker',
   ];
+
+  final List<String> _clientPreferences = [
+    'Desarrollo Móvil',
+    'Diseño UI/UX',
+    'Desarrollo Web Fullstack',
+    'Bases de Datos & Cloud',
+    'Consultoría Tecnológica',
+    'Mantenimiento & Soporte',
+  ];
+
+  bool get _isFreelancer => widget.user.role.toUpperCase() != 'CLIENT';
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.user.fullName);
+    _firstNameController = TextEditingController(text: widget.user.firstName);
+    _lastNameController = TextEditingController(text: widget.user.lastName);
+    _phoneController = TextEditingController(text: widget.user.phone);
     _roleController = TextEditingController(text: widget.user.role);
     _locationController = TextEditingController(text: widget.user.location);
     _bioController = TextEditingController(text: widget.user.bio);
+    _currentAvatarUrl = widget.user.avatarUrl;
     _selectedSkills = List.from(widget.user.skills);
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
     _roleController.dispose();
     _locationController.dispose();
     _bioController.dispose();
     super.dispose();
   }
 
+  /// Escenario 3: Carga y actualización de foto de avatar (JPG/PNG ≤ 2 MB)
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? file = await _picker.pickImage(
         source: source,
-        maxWidth: 800,
-        maxHeight: 800,
+        maxWidth: 1024,
+        maxHeight: 1024,
         imageQuality: 85,
       );
 
-      if (file != null) {
-        setState(() => _localImageFile = File(file.path));
+      if (file == null) return;
+
+      // 1. Validar formato de archivo (JPG / PNG)
+      final lowerPath = file.path.toLowerCase();
+      final isValidExtension = lowerPath.endsWith('.jpg') ||
+          lowerPath.endsWith('.jpeg') ||
+          lowerPath.endsWith('.png');
+
+      if (!isValidExtension) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(
+              'Formato no permitido: La imagen debe ser formato JPG o PNG.',
+            ),
+          ),
+        );
+        return;
       }
+
+      // 2. Validar tamaño máximo de 2 MB (2 * 1024 * 1024 bytes)
+      final int fileBytes = await file.length();
+      const int maxBytes = 2 * 1024 * 1024; // 2 MB
+
+      if (fileBytes > maxBytes) {
+        final mbSize = (fileBytes / (1024 * 1024)).toStringAsFixed(2);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(
+              'La imagen supera el límite de 2 MB (tamaño actual: $mbSize MB). Por favor selecciona otra.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      // 3. Procesar y subir imagen al backend actualizando la UI sin recargar
+      final imageFile = File(file.path);
+      setState(() {
+        _localImageFile = imageFile;
+        _isUploadingAvatar = true;
+      });
+
+      final uploadedUrl = await _profileService.uploadAvatar(imageFile);
+
+      if (!mounted) return;
+      setState(() {
+        _isUploadingAvatar = false;
+        if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
+          _currentAvatarUrl = uploadedUrl;
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.green,
+          content: Text('Foto de perfil actualizada correctamente.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
+      setState(() => _isUploadingAvatar = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al obtener imagen: $e')),
+        SnackBar(content: Text('Error al procesar la imagen: $e')),
       );
     }
   }
@@ -98,6 +189,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 leading: const Icon(Icons.camera_alt, color: AppColors.primary),
                 title: Text('Tomar foto con la cámara',
                     style: GoogleFonts.poppins()),
+                subtitle: Text('JPG o PNG ≤ 2 MB',
+                    style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textSecondary)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera);
@@ -108,6 +201,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const Icon(Icons.photo_library, color: AppColors.primary),
                 title:
                     Text('Elegir de la galería', style: GoogleFonts.poppins()),
+                subtitle: Text('JPG o PNG ≤ 2 MB',
+                    style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textSecondary)),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery);
@@ -120,23 +215,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  /// Escenario 2: Guardado exitoso de información general
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
 
-    String? finalAvatarUrl = widget.user.avatarUrl;
+    String? finalAvatarUrl = _currentAvatarUrl ?? widget.user.avatarUrl;
 
-    if (_localImageFile != null) {
-      final uploadedUrl = await _profileService.uploadAvatar(_localImageFile!);
-      if (uploadedUrl != null) {
-        finalAvatarUrl = uploadedUrl;
+    if (_localImageFile != null && (_currentAvatarUrl == null || _currentAvatarUrl == widget.user.avatarUrl)) {
+      final uploaded = await _profileService.uploadAvatar(_localImageFile!);
+      if (uploaded != null) {
+        finalAvatarUrl = uploaded;
       }
     }
 
+    final String firstName = _firstNameController.text.trim();
+    final String lastName = _lastNameController.text.trim();
+    final String fullName = '$firstName $lastName'.trim();
+
     final updated = widget.user.copyWith(
-      fullName: _nameController.text.trim(),
-      role: _roleController.text.trim(),
+      firstName: firstName,
+      lastName: lastName,
+      fullName: fullName,
+      phone: _phoneController.text.trim(),
+      role: _roleController.text.trim().isNotEmpty ? _roleController.text.trim() : widget.user.role,
       location: _locationController.text.trim(),
       bio: _bioController.text.trim(),
       avatarUrl: finalAvatarUrl,
@@ -150,10 +253,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!mounted) return;
 
     if (success) {
+      // Notificar éxito al usuario
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.green,
+          content: Text('¡Perfil actualizado con éxito!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
       Navigator.pop(context, updated);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al guardar datos en el backend')),
+        const SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text('Error al guardar datos en el servidor'),
+        ),
       );
     }
   }
@@ -163,9 +279,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return Image.file(_localImageFile!,
           width: 110, height: 110, fit: BoxFit.cover);
     }
-    if (widget.user.avatarUrl != null && widget.user.avatarUrl!.isNotEmpty) {
+    if (_currentAvatarUrl != null && _currentAvatarUrl!.isNotEmpty) {
       return Image.network(
-        widget.user.avatarUrl!,
+        _currentAvatarUrl!,
         width: 110,
         height: 110,
         fit: BoxFit.cover,
@@ -186,6 +302,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final availableOptions = _isFreelancer ? _freelancerSkills : _clientPreferences;
+    final optionsTitle = _isFreelancer ? 'Habilidades Técnicas' : 'Preferencias de Contratación';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -224,15 +343,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Avatar interactivo
                 Center(
                   child: Stack(
                     children: [
                       ClipOval(child: _buildAvatarWidget()),
+                      if (_isUploadingAvatar)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.4),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                        ),
                       Positioned(
                         bottom: 0,
                         right: 0,
                         child: GestureDetector(
-                          onTap: _showImagePickerSheet,
+                          onTap: _isUploadingAvatar ? null : _showImagePickerSheet,
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: const BoxDecoration(
@@ -247,9 +382,97 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'JPG o PNG (máx. 2 MB)',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Escenario 1: Visualización de datos registrados previamente (correo, rol)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          _isFreelancer
+                              ? Icons.laptop_chromebook_outlined
+                              : Icons.business_center_outlined,
+                          color: AppColors.primary,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.user.email.isNotEmpty
+                                  ? widget.user.email
+                                  : 'Cuenta activa FreelancerHub',
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    _isFreelancer ? 'FREELANCER' : 'CLIENTE',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Datos pre-llenados',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Escenario 2: Campos disponibles para completar
                 Text(
-                  'Datos Generales',
+                  'Información Personal',
                   style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -257,48 +480,77 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const SizedBox(height: 12),
                 CustomTextField(
-                  controller: _nameController,
-                  labelText: 'Nombre Completo',
+                  key: const Key('edit_first_name_field'),
+                  controller: _firstNameController,
+                  labelText: 'Nombre',
                   prefixIcon: Icons.person_outline,
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Campo obligatorio'
-                      : null,
+                  validator: FormValidators.validateName,
                 ),
                 const SizedBox(height: 12),
                 CustomTextField(
+                  key: const Key('edit_last_name_field'),
+                  controller: _lastNameController,
+                  labelText: 'Apellidos',
+                  prefixIcon: Icons.badge_outlined,
+                  validator: FormValidators.validateLastName,
+                ),
+                const SizedBox(height: 12),
+                CustomTextField(
+                  key: const Key('edit_phone_field'),
+                  controller: _phoneController,
+                  labelText: 'Teléfono de contacto',
+                  prefixIcon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
+                  validator: FormValidators.validatePhone,
+                ),
+                const SizedBox(height: 12),
+                CustomTextField(
+                  key: const Key('edit_role_title_field'),
                   controller: _roleController,
-                  labelText: 'Título profesional o Rol',
+                  labelText: _isFreelancer
+                      ? 'Especialidad o Título profesional'
+                      : 'Empresa o Razón de Contratación',
                   prefixIcon: Icons.work_outline,
                   validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Campo obligatorio'
+                      ? 'Este campo es obligatorio'
                       : null,
                 ),
                 const SizedBox(height: 12),
                 CustomTextField(
+                  key: const Key('edit_location_field'),
                   controller: _locationController,
-                  labelText: 'Ubicación',
+                  labelText: 'Ubicación (Ciudad, País)',
                   prefixIcon: Icons.location_on_outlined,
                 ),
                 const SizedBox(height: 12),
                 CustomTextField(
+                  key: const Key('edit_bio_field'),
                   controller: _bioController,
-                  labelText: 'Biografía',
+                  labelText: 'Biografía o Resumen profesional',
                   prefixIcon: Icons.description_outlined,
                   maxLines: 3,
                 ),
                 const SizedBox(height: 24),
+
                 Text(
-                  'Habilidades Principales',
+                  optionsTitle,
                   style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 6),
+                Text(
+                  _isFreelancer
+                      ? 'Selecciona las habilidades que dominas para destacar ante clientes'
+                      : 'Selecciona las áreas de especialidad que requieres para tus proyectos',
+                  style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
                 Wrap(
                   spacing: 8.0,
                   runSpacing: 4.0,
-                  children: _availableSkills.map((skill) {
+                  children: availableOptions.map((skill) {
                     final isSelected = _selectedSkills.contains(skill);
                     return FilterChip(
                       label: Text(skill),
@@ -334,11 +586,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
                 const SizedBox(height: 32),
                 PrimaryButton(
+                  key: const Key('edit_profile_submit_button'),
                   text: 'Guardar Cambios',
                   isLoading: _isSaving,
                   onPressed: _saveProfile,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
               ],
             ),
           ),

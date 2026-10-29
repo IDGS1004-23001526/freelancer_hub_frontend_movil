@@ -6,8 +6,9 @@ class FormValidators {
   );
   static final RegExp _letterRegex = RegExp(r'[a-zA-Z]');
   static final RegExp _numberRegex = RegExp(r'[0-9]');
+  static final RegExp _phoneRegex = RegExp(r'^\+?[0-9\s\-()]{7,20}$');
 
-  /// Valida el nombre completo del usuario (mínimo 2 caracteres, máximo 100).
+  /// Valida el primer nombre del usuario (mínimo 2 caracteres, máximo 100).
   static String? validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'El nombre es obligatorio';
@@ -18,6 +19,33 @@ class FormValidators {
     }
     if (trimmed.length > 100) {
       return 'El nombre no puede superar los 100 caracteres';
+    }
+    return null;
+  }
+
+  /// Valida los apellidos del usuario (mínimo 2 caracteres, máximo 100).
+  static String? validateLastName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Los apellidos son obligatorios';
+    }
+    final trimmed = value.trim();
+    if (trimmed.length < 2) {
+      return 'Los apellidos deben tener al menos 2 caracteres';
+    }
+    if (trimmed.length > 100) {
+      return 'Los apellidos no pueden superar los 100 caracteres';
+    }
+    return null;
+  }
+
+  /// Valida formato de teléfono de contacto (opcional o con formato válido si se proporciona).
+  static String? validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // El teléfono puede ser opcional al inicio
+    }
+    final trimmed = value.trim();
+    if (!_phoneRegex.hasMatch(trimmed)) {
+      return 'Ingresa un número telefónico válido (ej. +52 477 123 4567)';
     }
     return null;
   }

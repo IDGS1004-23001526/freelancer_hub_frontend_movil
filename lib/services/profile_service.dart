@@ -38,17 +38,28 @@ class ProfileService {
     final cached = await _authService.getCachedUserProfile();
     try {
       final headers = await _getHeaders();
-      final response = await _getWithFallback('/auth/me', headers);
+      http.Response? response;
+      try {
+        response = await _getWithFallback('/users/me/profile', headers);
+      } catch (_) {
+        response = await _getWithFallback('/auth/me', headers);
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final payload = data is Map<String, dynamic>
-            ? (data['data'] ?? data['user'] ?? data)
+            ? (data['data'] ?? data['user'] ?? data['profile'] ?? data)
             : <String, dynamic>{};
         if (payload is Map<String, dynamic>) {
           final remoteProfile = UserProfile.fromJson(payload);
           final merged = cached != null
               ? remoteProfile.copyWith(
+                  firstName: remoteProfile.firstName.isNotEmpty
+                      ? remoteProfile.firstName
+                      : cached.firstName,
+                  lastName: remoteProfile.lastName.isNotEmpty
+                      ? remoteProfile.lastName
+                      : cached.lastName,
                   fullName: remoteProfile.fullName.isNotEmpty
                       ? remoteProfile.fullName
                       : cached.fullName,
@@ -59,6 +70,10 @@ class ProfileService {
                   bio: remoteProfile.bio.isNotEmpty
                       ? remoteProfile.bio
                       : cached.bio,
+                  phone: remoteProfile.phone.isNotEmpty
+                      ? remoteProfile.phone
+                      : cached.phone,
+                  avatarUrl: remoteProfile.avatarUrl ?? cached.avatarUrl,
                   skills: remoteProfile.skills.isNotEmpty
                       ? remoteProfile.skills
                       : cached.skills,
@@ -80,15 +95,27 @@ class ProfileService {
       final headers = await _getHeaders();
       for (final base in AuthService.getOrderedBaseUrls()) {
         try {
-          final response = await http
+          var response = await http
               .put(
-                Uri.parse('$base/auth/me'),
+                Uri.parse('$base/users/me/profile'),
                 headers: headers,
                 body: jsonEncode(user.toJson()),
               )
               .timeout(const Duration(seconds: 4));
+
+          if (response.statusCode == 404) {
+            response = await http
+                .put(
+                  Uri.parse('$base/profile/professional-info'),
+                  headers: headers,
+                  body: jsonEncode(user.toJson()),
+                )
+                .timeout(const Duration(seconds: 4));
+          }
+
           AuthService.activeBaseUrl = base;
           return response.statusCode == 200 ||
+              response.statusCode == 201 ||
               response.statusCode == 204 ||
               true;
         } catch (_) {
@@ -106,7 +133,7 @@ class ProfileService {
       final token = await _authService.getToken();
       for (final base in AuthService.getOrderedBaseUrls()) {
         try {
-          final uri = Uri.parse('$base/users/avatar');
+          final uri = Uri.parse('$base/users/me/avatar');
           final request = http.MultipartRequest('POST', uri);
 
           if (token != null) {
@@ -124,7 +151,14 @@ class ProfileService {
 
           if (response.statusCode == 200 || response.statusCode == 201) {
             final data = jsonDecode(response.body);
-            return data['avatarUrl'] ?? data['url'] ?? data['avatar'];
+            final newUrl = data['avatarUrl'] ?? data['url'] ?? data['avatar'];
+            if (newUrl != null && newUrl is String) {
+              final cached = await _authService.getCachedUserProfile();
+              if (cached != null) {
+                await _authService.saveUserProfile(cached.copyWith(avatarUrl: newUrl));
+              }
+              return newUrl;
+            }
           }
         } catch (_) {
           continue;
