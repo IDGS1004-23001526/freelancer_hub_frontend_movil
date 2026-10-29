@@ -45,8 +45,6 @@ class _AddCardScreenState extends State<AddCardScreen> {
     final brand = CardBrandDetector.detect(_cardNumberController.text);
     if (brand != _detectedBrand) {
       setState(() => _detectedBrand = brand);
-    } else {
-      setState(() {});
     }
   }
 
@@ -204,28 +202,24 @@ class _AddCardScreenState extends State<AddCardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Tarjeta Bancaria Visual e Interactiva
-                _buildVisualCreditCard(),
-                const SizedBox(height: 24),
-
-                // 2. Encabezado de Datos
+                // Encabezado de Datos
                 Text(
                   'Datos de la Tarjeta',
                   style: GoogleFonts.poppins(
-                    fontSize: 16,
+                    fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Información bancaria protegida para custodia Escrow de contratos',
+                  'Ingresa la información bancaria para autorizar contratos y custodia Escrow',
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
                 // Campo: Número de Tarjeta con teclado numérico y formateo reactivo
                 CustomTextField(
@@ -424,250 +418,6 @@ class _AddCardScreenState extends State<AddCardScreen> {
         ),
       ),
     );
-  }
-
-  /// Tarjeta de Crédito Visual con gradiente borgoña y elementos reactivos en tiempo real
-  Widget _buildVisualCreditCard() {
-    final rawNumber = _cardNumberController.text.replaceAll(' ', '');
-    final displayHolder = _cardHolderController.text.trim().isEmpty
-        ? 'NOMBRE DEL TITULAR'
-        : _cardHolderController.text.trim().toUpperCase();
-    final displayExpiry = _expiryController.text.trim().isEmpty
-        ? 'MM/AA'
-        : _expiryController.text.trim();
-
-    return Container(
-      width: double.infinity,
-      height: 215,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF6B1D2F), // Color borgoña característico de la plataforma
-            Color(0xFF4A101E),
-            Color(0xFF2E0711),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF6B1D2F).withOpacity(0.35),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Cabecera de la tarjeta: Título de plataforma y Badge de Marca
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'FREELANCER HUB',
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              _buildBrandLogoWhite(),
-            ],
-          ),
-
-          // Chip EMV Dorado y Símbolo Contactless
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFFFFD700),
-                      Color(0xFFE6BE8A),
-                      Color(0xFFD4AF37),
-                    ],
-                  ),
-                ),
-                child: Center(
-                  child: Container(
-                    width: 32,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.black.withOpacity(0.3), width: 0.8),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Icon(
-                Icons.wifi,
-                color: Colors.white.withOpacity(0.7),
-                size: 22,
-              ),
-            ],
-          ),
-
-          // Número de tarjeta reactivo con formato de 4 bloques
-          Text(
-            _formatCardNumberDisplay(rawNumber),
-            style: GoogleFonts.spaceMono(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2.2,
-            ),
-          ),
-
-          // Pie de la tarjeta: Titular y Expiración
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'TITULAR',
-                      style: GoogleFonts.poppins(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.0,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      displayHolder,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'EXPIRA',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    displayExpiry,
-                    style: GoogleFonts.spaceMono(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatCardNumberDisplay(String raw) {
-    final buffer = StringBuffer();
-    for (int i = 0; i < 16; i++) {
-      if (i > 0 && i % 4 == 0) {
-        buffer.write(' ');
-      }
-      if (i < raw.length) {
-        buffer.write(raw[i]);
-      } else {
-        buffer.write('•');
-      }
-    }
-    return buffer.toString();
-  }
-
-  Widget _buildBrandLogoWhite() {
-    switch (_detectedBrand) {
-      case CardBrand.visa:
-        return Text(
-          'VISA',
-          style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            fontStyle: FontStyle.italic,
-          ),
-        );
-      case CardBrand.mastercard:
-        return Row(
-          children: [
-            Container(
-              width: 18,
-              height: 18,
-              decoration: const BoxDecoration(
-                color: Color(0xFFEB001B),
-                shape: BoxShape.circle,
-              ),
-            ),
-            Transform.translate(
-              offset: const Offset(-8, 0),
-              child: Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF79E1B).withOpacity(0.9),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        );
-      case CardBrand.amex:
-        return Text(
-          'AMEX',
-          style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-          ),
-        );
-      default:
-        return Icon(
-          Icons.credit_card,
-          color: Colors.white.withOpacity(0.8),
-          size: 24,
-        );
-    }
   }
 
   Widget _buildBrandBadge() {

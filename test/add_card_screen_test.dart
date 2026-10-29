@@ -35,7 +35,7 @@ void main() {
       expect(formatted.text, equals('12/28'));
     });
 
-    testWidgets('Renderiza la tarjeta visual, campos con teclado numérico y banner PCI-DSS', (
+    testWidgets('Renderiza campos con teclado numérico, switch de método predeterminado y banner PCI-DSS', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -49,10 +49,8 @@ void main() {
       expect(find.text('Registrar Tarjeta'), findsOneWidget);
       expect(find.text('PCI-DSS'), findsOneWidget);
 
-      // 2. Elementos de la tarjeta visual
-      expect(find.text('FREELANCER HUB'), findsOneWidget);
-      expect(find.text('TITULAR'), findsOneWidget);
-      expect(find.text('EXPIRA'), findsOneWidget);
+      // 2. Encabezado de formulario
+      expect(find.text('Datos de la Tarjeta'), findsOneWidget);
 
       // 3. Campos del formulario
       expect(find.byKey(const Key('card_number_field')), findsOneWidget);
@@ -60,11 +58,12 @@ void main() {
       expect(find.byKey(const Key('card_expiry_field')), findsOneWidget);
       expect(find.byKey(const Key('card_cvv_field')), findsOneWidget);
 
-      // 4. Banner informativo de seguridad
+      // 4. Switch y Banner de seguridad
+      expect(find.text('Método Predeterminado'), findsOneWidget);
       expect(find.text('Cifrado Bancario de Nivel 1 (PCI-DSS)'), findsOneWidget);
     });
 
-    testWidgets('Formatea reactivamente los campos e interactúa con la tarjeta visual', (
+    testWidgets('Formatea reactivamente los campos y detecta la marca de tarjeta', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -80,6 +79,9 @@ void main() {
         '4000123456789010',
       );
       await tester.pump();
+
+      // El badge de marca debe detectar VISA
+      expect(find.text('VISA'), findsOneWidget);
 
       // Ingresar titular
       await tester.enterText(
@@ -101,11 +103,6 @@ void main() {
         '789',
       );
       await tester.pump();
-
-      // La tarjeta visual debe reflejar los datos reactivos
-      expect(find.text('DIEGO HERNANDEZ'), findsWidgets);
-      expect(find.text('11/29'), findsWidgets);
-      expect(find.text('VISA'), findsWidgets);
 
       // Guardar tarjeta
       await tester.ensureVisible(find.byKey(const Key('save_card_button')));
