@@ -10,6 +10,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
+import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -298,10 +299,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: _navigateToEditProfile,
                     ),
                     const Divider(height: 1),
-                    const ProfileMenuItem(
+                    ProfileMenuItem(
                       icon: Icons.credit_card,
                       title: 'Métodos de pago y tarjetas',
                       subtitle: 'Tarjetas bancarias y fondos en custodia',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AddCardScreen()),
+                        );
+                      },
                     ),
                     const Divider(height: 1),
                     const ProfileMenuItem(

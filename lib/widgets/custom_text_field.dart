@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
 
@@ -15,6 +16,9 @@ class CustomTextField extends StatelessWidget {
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
   final AutovalidateMode autovalidateMode;
+  final List<TextInputFormatter>? inputFormatters;
+  final int? maxLength;
+  final TextCapitalization textCapitalization;
 
   const CustomTextField({
     super.key,
@@ -30,6 +34,9 @@ class CustomTextField extends StatelessWidget {
     this.validator,
     this.onChanged,
     this.autovalidateMode = AutovalidateMode.onUserInteraction,
+    this.inputFormatters,
+    this.maxLength,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -43,10 +50,14 @@ class CustomTextField extends StatelessWidget {
       validator: validator,
       onChanged: onChanged,
       autovalidateMode: autovalidateMode,
+      inputFormatters: inputFormatters,
+      maxLength: maxLength,
+      textCapitalization: textCapitalization,
       style: GoogleFonts.poppins(fontSize: 14, color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: labelText,
         hintText: hintText,
+        counterText: maxLength != null ? '' : null,
         labelStyle:
             GoogleFonts.poppins(color: AppColors.textSecondary, fontSize: 13),
         hintStyle: GoogleFonts.poppins(
