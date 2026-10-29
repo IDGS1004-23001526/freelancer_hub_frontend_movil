@@ -67,7 +67,8 @@ class AvatarImage extends StatelessWidget {
     // Ruta relativa servida por el backend (/uploads/avatars/...)
     if (trimmed.startsWith('/uploads/') || trimmed.startsWith('uploads/')) {
       final base = AuthService.activeBaseUrl ?? ApiConstants.baseUrl;
-      final fullUrl = trimmed.startsWith('/') ? '$base$trimmed' : '$base/$trimmed';
+      final fullUrl =
+          trimmed.startsWith('/') ? '$base$trimmed' : '$base/$trimmed';
       return Image.network(
         fullUrl,
         width: size,

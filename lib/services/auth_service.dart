@@ -46,6 +46,13 @@ class AuthService {
         ? user.avatarUrl
         : cached?.avatarUrl;
 
+    if (effectiveAvatar != null && effectiveAvatar.isNotEmpty && user.email.isNotEmpty) {
+      await _storage.write(
+        key: 'saved_avatar_${user.email.trim().toLowerCase()}',
+        value: effectiveAvatar,
+      );
+    }
+
     await _storage.write(
       key: 'user_profile',
       value: jsonEncode({
@@ -179,6 +186,14 @@ class AuthService {
         final rawProfile = UserProfile.fromJson(userMap);
         final cached = await getCachedUserProfile();
 
+        // Recuperar avatar persistido de la cuenta si el servidor o caché no lo traen
+        final normalizedEmail = (rawProfile.email.isNotEmpty ? rawProfile.email : email).trim().toLowerCase();
+        final persistedAvatar = await _storage.read(key: 'saved_avatar_$normalizedEmail');
+
+        final effectiveAvatar = (rawProfile.avatarUrl != null && rawProfile.avatarUrl!.isNotEmpty)
+            ? rawProfile.avatarUrl
+            : (cached?.avatarUrl ?? persistedAvatar);
+
         final userProfile = rawProfile.copyWith(
           role: _formatRoleLabel(rawProfile.role),
           location: rawProfile.location.isNotEmpty
@@ -191,9 +206,7 @@ class AuthService {
               : (cached?.bio.isNotEmpty == true
                   ? cached!.bio
                   : 'Especialista verificado en Freelancer Hub.'),
-          avatarUrl: (rawProfile.avatarUrl != null && rawProfile.avatarUrl!.isNotEmpty)
-              ? rawProfile.avatarUrl
-              : cached?.avatarUrl,
+          avatarUrl: effectiveAvatar,
           skills: rawProfile.skills.isNotEmpty
               ? rawProfile.skills
               : (cached?.skills.isNotEmpty == true
