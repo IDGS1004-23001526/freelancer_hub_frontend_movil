@@ -10,6 +10,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
+import '../chat/chat_screen.dart';
 import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
 
@@ -364,7 +365,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentNavIndex,
-        onTap: (index) => setState(() => _currentNavIndex = index),
+        onTap: (index) {
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ChatScreen()),
+            );
+            return;
+          }
+          setState(() => _currentNavIndex = index);
+        },
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textSecondary,
         backgroundColor: AppColors.surface,
