@@ -99,6 +99,23 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageSubscription = _socketService.onMessageReceived.listen((message) {
       if (!mounted) return;
       setState(() {
+        final existingIndex = _messages.indexWhere((m) => m.id == message.id);
+        if (existingIndex != -1) {
+          _messages[existingIndex] = message;
+          return;
+        }
+
+        // Si es nuestro propio mensaje confirmado por el servidor, reemplazar el mensaje optimista local
+        if (message.isMine) {
+          final optimisticIndex = _messages.lastIndexWhere(
+            (m) => m.isMine && m.id.startsWith('msg_') && m.content == message.content,
+          );
+          if (optimisticIndex != -1) {
+            _messages[optimisticIndex] = message;
+            return;
+          }
+        }
+
         _messages.add(message);
       });
       _scrollToBottom();
