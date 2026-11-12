@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/chat_conversation.dart';
 import '../../services/chat_api_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/avatar_image.dart';
 import 'chat_screen.dart';
 
 class ConversationsScreen extends StatefulWidget {
@@ -125,7 +127,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         onContactSelected: (newConv) {
           Navigator.pop(ctx);
           setState(() {
-            _conversations.insert(0, newConv);
+            final exists = _conversations.any((c) => c.id == newConv.id);
+            if (!exists) {
+              _conversations.insert(0, newConv);
+            }
           });
           _openChat(newConv);
         },
@@ -524,40 +529,99 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 }
 
-/// Selector modal para iniciar una nueva conversación con contactos de la plataforma
-class _NewChatContactPicker extends StatelessWidget {
+/// Selector modal para buscar perfiles existentes en la plataforma e iniciar una nueva conversación
+class _NewChatContactPicker extends StatefulWidget {
   final ValueChanged<ChatConversation> onContactSelected;
 
   const _NewChatContactPicker({required this.onContactSelected});
 
   @override
+  State<_NewChatContactPicker> createState() => _NewChatContactPickerState();
+}
+
+class _NewChatContactPickerState extends State<_NewChatContactPicker> {
+  final ChatApiService _chatApiService = ChatApiService();
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+
+  List<ChatContact> _contacts = [];
+  bool _isLoading = true;
+  bool _isCreating = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchContacts();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      _fetchContacts(query: _searchController.text);
+    });
+  }
+
+  Future<void> _fetchContacts({String query = ''}) async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final results = await _chatApiService.searchContacts(query: query);
+      if (mounted) {
+        setState(() {
+          _contacts = results;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'No se pudieron cargar los perfiles disponibles.';
+        });
+      }
+    }
+  }
+
+  Future<void> _selectContact(ChatContact contact) async {
+    if (_isCreating) return;
+    setState(() => _isCreating = true);
+
+    final conv = await _chatApiService.createOrGetConversation(peerId: contact.id);
+
+    if (!mounted) return;
+    setState(() => _isCreating = false);
+
+    if (conv != null) {
+      widget.onContactSelected(conv);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo iniciar la conversación con este usuario.')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final availableContacts = [
-      {
-        'id': 'conv_nuevo_paulo',
-        'peerId': 'usr_paulo_001',
-        'name': 'Paulo Rodríguez',
-        'role': 'Cliente Contratante',
-        'project': 'Plataforma E-Learning Mobile',
-      },
-      {
-        'id': 'conv_nuevo_valeria',
-        'peerId': 'usr_valeria_002',
-        'name': 'Valeria Castro',
-        'role': 'Freelancer Backend Node.js',
-        'project': 'Microservicios FreelancerHub',
-      },
-      {
-        'id': 'conv_nuevo_jorge',
-        'peerId': 'usr_jorge_003',
-        'name': 'Jorge Montes',
-        'role': 'Cliente Contratante',
-        'project': 'Integración MercadoPago y Stripe',
-      },
-    ];
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + bottomInset),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.78,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -583,46 +647,93 @@ class _NewChatContactPicker extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Contactos relacionados a tus proyectos y postulaciones:',
+            'Busca perfiles existentes en la plataforma para enviarles mensaje:',
             style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 16),
-          ...availableContacts.map((contact) {
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(
-                backgroundColor: AppColors.primaryLight,
-                child: Text(
-                  contact['name']!.substring(0, 1),
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: AppColors.chatBubbleMine),
-                ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Buscar por nombre, correo o especialidad...',
+              hintStyle: GoogleFonts.poppins(fontSize: 13, color: AppColors.textSecondary),
+              prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.textSecondary),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        _searchController.clear();
+                        _fetchContacts();
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: AppColors.background,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
-              title: Text(
-                contact['name']!,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              subtitle: Text(
-                '${contact['role']} • ${contact['project']}',
-                style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textSecondary),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
-              onTap: () {
-                final newConv = ChatConversation(
-                  id: contact['id']!,
-                  peerId: contact['peerId']!,
-                  peerName: contact['name']!,
-                  peerRole: contact['role']!,
-                  projectName: contact['project'],
-                  lastMessage: 'Conversación iniciada',
-                  lastMessageTime: DateTime.now(),
-                  unreadCount: 0,
-                  isOnline: true,
-                  lastMessageIsMine: true,
-                );
-                onContactSelected(newConv);
-              },
-            );
-          }),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_isCreating)
+            const LinearProgressIndicator(minHeight: 2),
+          Flexible(
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : _errorMessage != null
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            _errorMessage!,
+                            style: GoogleFonts.poppins(fontSize: 13, color: Colors.redAccent),
+                          ),
+                        ),
+                      )
+                    : _contacts.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 28),
+                            child: Center(
+                              child: Text(
+                                'No se encontraron perfiles con ese criterio.',
+                                style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textSecondary),
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: _contacts.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                            itemBuilder: (context, index) {
+                              final contact = _contacts[index];
+                              return ListTile(
+                                contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                                leading: ClipOval(
+                                  child: AvatarImage(
+                                    avatarUrl: contact.avatarUrl,
+                                    size: 44,
+                                  ),
+                                ),
+                                title: Text(
+                                  contact.name,
+                                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600, fontSize: 14),
+                                ),
+                                subtitle: Text(
+                                  '${contact.role} • ${contact.email}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textSecondary),
+                                ),
+                                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                                onTap: () => _selectContact(contact),
+                              );
+                            },
+                          ),
+          ),
         ],
       ),
     );

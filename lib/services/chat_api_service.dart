@@ -4,6 +4,32 @@ import '../models/chat_conversation.dart';
 import '../models/chat_message.dart';
 import 'auth_service.dart';
 
+class ChatContact {
+  final String id;
+  final String name;
+  final String email;
+  final String role;
+  final String? avatarUrl;
+
+  const ChatContact({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.role,
+    this.avatarUrl,
+  });
+
+  factory ChatContact.fromJson(Map<String, dynamic> json) {
+    return ChatContact(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Usuario',
+      email: json['email']?.toString() ?? '',
+      role: json['role']?.toString() ?? 'Usuario',
+      avatarUrl: json['avatarUrl']?.toString(),
+    );
+  }
+}
+
 class ChatApiService {
   final AuthService _authService = AuthService();
 
@@ -127,5 +153,84 @@ class ChatApiService {
         continue;
       }
     }
+  }
+
+  /// Busca perfiles/usuarios existentes en la plataforma para iniciar un nuevo chat.
+  Future<List<ChatContact>> searchContacts({String query = ''}) async {
+    final headers = await _getHeaders();
+    final encodedQuery = Uri.encodeQueryComponent(query.trim());
+    final path = encodedQuery.isEmpty ? '/chats/contacts' : '/chats/contacts?search=$encodedQuery';
+
+    for (final base in AuthService.getOrderedBaseUrls()) {
+      try {
+        final response = await http
+            .get(Uri.parse('$base$path'), headers: headers)
+            .timeout(const Duration(seconds: 5));
+        AuthService.activeBaseUrl = base;
+
+        if (response.statusCode == 200) {
+          final body = jsonDecode(response.body);
+          final list = (body is Map<String, dynamic> ? body['data'] : body) as List<dynamic>? ?? [];
+          return list
+              .whereType<Map<String, dynamic>>()
+              .map(ChatContact.fromJson)
+              .toList();
+        }
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          return [];
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    throw Exception('No se pudieron buscar los perfiles.');
+  }
+
+  /// Crea o recupera una conversación real en el backend con el perfil seleccionado.
+  Future<ChatConversation?> createOrGetConversation({
+    required String peerId,
+    String? projectId,
+    String? projectName,
+  }) async {
+    final headers = await _getHeaders();
+    for (final base in AuthService.getOrderedBaseUrls()) {
+      try {
+        final response = await http
+            .post(
+              Uri.parse('$base/chats'),
+              headers: headers,
+              body: jsonEncode({
+                'peerId': peerId,
+                if (projectId != null) 'projectId': projectId,
+                if (projectName != null) 'projectName': projectName,
+              }),
+            )
+            .timeout(const Duration(seconds: 5));
+        AuthService.activeBaseUrl = base;
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final body = jsonDecode(response.body);
+          final item = body is Map<String, dynamic> ? (body['data'] ?? body) : body;
+          if (item is Map<String, dynamic>) {
+            return ChatConversation(
+              id: item['id']?.toString() ?? '',
+              peerId: item['peerId']?.toString() ?? peerId,
+              peerName: item['peerName']?.toString() ?? 'Usuario',
+              peerRole: item['peerRole']?.toString() ?? 'Usuario',
+              peerAvatarUrl: item['peerAvatarUrl']?.toString(),
+              projectName: item['projectName']?.toString(),
+              lastMessage: 'Conversación iniciada',
+              lastMessageTime: DateTime.now(),
+              unreadCount: 0,
+              isOnline: false,
+              lastMessageIsMine: true,
+            );
+          }
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    return null;
   }
 }
