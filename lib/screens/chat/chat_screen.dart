@@ -6,6 +6,7 @@ import '../../models/chat_message.dart';
 import '../../services/auth_service.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/chat_socket_service.dart';
+import '../../services/notification_socket_service.dart';
 import '../../theme/app_colors.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -56,6 +57,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    NotificationSocketService.instance.activeConversationId = widget.conversationId;
     _socketService = widget.socketService ?? ChatSocketService();
     _currentUserId = widget.currentUserId ?? 'my_user_id';
     _currentUserName = widget.currentUserName ?? 'Yo';
@@ -121,10 +123,18 @@ class _ChatScreenState extends State<ChatScreen> {
     // 1. Mensajes recibidos en tiempo real
     _messageSubscription = _socketService.onMessageReceived.listen((rawMessage) {
       if (!mounted) return;
-      final isMineResolved = rawMessage.isMine ||
-          (rawMessage.senderId.trim().isNotEmpty &&
-              _currentUserId.trim().isNotEmpty &&
-              rawMessage.senderId.trim().toLowerCase() == _currentUserId.trim().toLowerCase());
+      if (rawMessage.conversationId.isNotEmpty &&
+          rawMessage.conversationId != widget.conversationId) {
+        return;
+      }
+
+      final hasValidUserIds = rawMessage.senderId.trim().isNotEmpty &&
+          _currentUserId.trim().isNotEmpty &&
+          _currentUserId != 'my_user_id';
+      final isMineResolved = hasValidUserIds
+          ? rawMessage.senderId.trim().toLowerCase() ==
+              _currentUserId.trim().toLowerCase()
+          : rawMessage.isMine;
       final message = rawMessage.copyWith(isMine: isMineResolved);
 
       setState(() {
@@ -239,22 +249,28 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (_socketService.currentState == SocketConnectionState.connected) {
-      _socketService.sendMessage(newMessage);
       _socketService.sendTyping(false, widget.conversationId);
-    } else {
-      final saved = await _chatApiService.sendMessage(
-        widget.conversationId,
-        text,
-        currentUserId: _currentUserId,
-      );
-      if (saved != null && mounted) {
-        setState(() {
-          final idx = _messages.indexWhere((m) => m.id == tempId);
-          if (idx != -1) {
-            _messages[idx] = saved.copyWith(isMine: true);
+    }
+
+    final saved = await _chatApiService.sendMessage(
+      widget.conversationId,
+      text,
+      currentUserId: _currentUserId,
+    );
+    if (saved != null && mounted) {
+      setState(() {
+        final savedMine = saved.copyWith(isMine: true);
+        final alreadyIdx = _messages.indexWhere((m) => m.id == saved.id);
+        final tempIdx = _messages.indexWhere((m) => m.id == tempId);
+        if (alreadyIdx != -1) {
+          _messages[alreadyIdx] = savedMine;
+          if (tempIdx != -1 && tempIdx != alreadyIdx) {
+            _messages.removeAt(tempIdx);
           }
-        });
-      }
+        } else if (tempIdx != -1) {
+          _messages[tempIdx] = savedMine;
+        }
+      });
     }
 
     _scrollToBottom();
@@ -262,6 +278,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    if (NotificationSocketService.instance.activeConversationId == widget.conversationId) {
+      NotificationSocketService.instance.activeConversationId = null;
+    }
     _messageSubscription?.cancel();
     _connectionSubscription?.cancel();
     _statusSubscription?.cancel();

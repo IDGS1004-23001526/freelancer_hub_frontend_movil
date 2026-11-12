@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_constants.dart';
 import '../models/user_profile.dart';
+import 'notification_socket_service.dart';
 
 /// Resultado detallado de una operación de autenticación (Login / Registro).
 class AuthResult {
@@ -34,6 +36,7 @@ class AuthService {
 
   Future<void> saveToken(String token) async {
     await _storage.write(key: 'jwt_token', value: token);
+    unawaited(NotificationSocketService.instance.connectIfAuthenticated());
   }
 
   Future<String?> getToken() async {
@@ -95,6 +98,7 @@ class AuthService {
         // Ignorar errores de red al cerrar sesión localmente
       }
     }
+    NotificationSocketService.instance.disconnect();
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_profile');

@@ -31,6 +31,7 @@ class ChatSocketService {
 
   String? _currentConversationId;
   String? _currentUserId;
+  String? _connectedToken;
 
   void _updateState(SocketConnectionState state) {
     _currentState = state;
@@ -45,6 +46,16 @@ class ChatSocketService {
     String? explicitUrl,
     String? currentUserId,
   }) async {
+    final token = await _authService.getToken();
+    final userChanged = _currentUserId != null &&
+        currentUserId != null &&
+        _currentUserId != currentUserId;
+    final tokenChanged = _connectedToken != null && _connectedToken != token;
+
+    if (userChanged || tokenChanged) {
+      disconnect();
+    }
+
     _currentConversationId = conversationId;
     _currentUserId = currentUserId;
 
@@ -54,8 +65,8 @@ class ChatSocketService {
     }
 
     _updateState(SocketConnectionState.connecting);
+    _connectedToken = token;
 
-    final token = await _authService.getToken();
     final socketBaseUrl = ApiConstants.getSocketUrl(explicitUrl);
 
     try {
@@ -63,6 +74,7 @@ class ChatSocketService {
         socketBaseUrl,
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
+            .enableForceNew()
             .enableAutoConnect()
             .enableReconnection()
             .setReconnectionAttempts(double.infinity)
@@ -207,6 +219,7 @@ class ChatSocketService {
     _socket?.disconnect();
     _socket?.dispose();
     _socket = null;
+    _connectedToken = null;
     _updateState(SocketConnectionState.disconnected);
   }
 

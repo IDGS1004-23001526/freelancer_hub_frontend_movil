@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/chat_conversation.dart';
 import '../../services/chat_api_service.dart';
+import '../../services/notification_socket_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/avatar_image.dart';
 import 'chat_screen.dart';
@@ -25,6 +26,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   String _selectedFilter = 'Todos';
   late List<ChatConversation> _conversations;
   bool _isLoading = false;
+  StreamSubscription<MessageNotification>? _notificationSubscription;
 
   @override
   void initState() {
@@ -34,6 +36,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     if (widget.initialConversations == null) {
       _loadConversations();
     }
+    _notificationSubscription =
+        NotificationSocketService.instance.onMessageNotification.listen((_) {
+      if (mounted && widget.initialConversations == null) {
+        _loadConversations();
+      }
+    });
   }
 
   Future<void> _loadConversations() async {
@@ -58,6 +66,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   @override
   void dispose() {
+    _notificationSubscription?.cancel();
     _searchController.dispose();
     super.dispose();
   }
