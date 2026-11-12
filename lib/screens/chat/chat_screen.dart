@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/chat_message.dart';
@@ -63,13 +64,35 @@ class _ChatScreenState extends State<ChatScreen> {
     _initConnection();
   }
 
+  Future<String?> _extractUserIdFromToken() async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null || token.isEmpty) return null;
+      final parts = token.split('.');
+      if (parts.length != 3) return null;
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+      if (payload is Map<String, dynamic>) {
+        return payload['sub']?.toString();
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _initConnection() async {
     if (widget.currentUserId == null) {
       final cached = await _authService.getCachedUserProfile();
-      if (cached != null && mounted) {
+      final tokenUserId = await _extractUserIdFromToken();
+      final resolvedId = (tokenUserId != null && tokenUserId.isNotEmpty)
+          ? tokenUserId
+          : (cached != null && cached.id.isNotEmpty ? cached.id : _currentUserId);
+
+      if (mounted) {
         setState(() {
-          _currentUserId = cached.id.isNotEmpty ? cached.id : _currentUserId;
-          _currentUserName = cached.fullName.isNotEmpty ? cached.fullName : _currentUserName;
+          _currentUserId = resolvedId;
+          if (cached != null && cached.fullName.isNotEmpty) {
+            _currentUserName = cached.fullName;
+          }
         });
       }
     }
@@ -411,6 +434,15 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  isMine ? 'Tú' : (message.senderName.isNotEmpty ? message.senderName : widget.peerName),
+                  style: GoogleFonts.poppins(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: isMine ? Colors.white70 : AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 2),
                 Text(
                   message.content,
                   style: GoogleFonts.poppins(

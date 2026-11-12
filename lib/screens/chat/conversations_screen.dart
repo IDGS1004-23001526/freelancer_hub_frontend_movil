@@ -116,6 +116,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
         ),
       ),
     );
+    if (widget.initialConversations == null && mounted) {
+      unawaited(_loadConversations());
+    }
   }
 
   void _showNewChatDialog() {
@@ -430,7 +433,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                         ),
                       Expanded(
                         child: Text(
-                          conv.lastMessage,
+                          conv.lastMessageIsMine &&
+                                  conv.lastMessage.isNotEmpty &&
+                                  !conv.lastMessage.startsWith('Tú:')
+                              ? 'Tú: ${conv.lastMessage}'
+                              : conv.lastMessage,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
