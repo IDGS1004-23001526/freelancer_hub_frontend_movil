@@ -28,9 +28,12 @@ class ChatMessage {
     required this.isMine,
   });
 
-  factory ChatMessage.fromJson(Map<String, dynamic> json, {String? currentUserId}) {
-    final sender = (json['senderId'] ?? json['sender'] ?? json['from'] ?? '').toString();
-    final isMineMsg = json['isMine'] == true || (currentUserId != null && sender == currentUserId);
+  factory ChatMessage.fromJson(Map<String, dynamic> json,
+      {String? currentUserId}) {
+    final sender =
+        (json['senderId'] ?? json['sender'] ?? json['from'] ?? '').toString();
+    final isMineMsg = json['isMine'] == true ||
+        (currentUserId != null && sender == currentUserId);
 
     MessageStatus parseStatus(dynamic raw) {
       final s = raw?.toString().toLowerCase();
@@ -41,16 +44,25 @@ class ChatMessage {
     }
 
     return ChatMessage(
-      id: (json['id'] ?? json['_id'] ?? json['messageId'] ?? DateTime.now().millisecondsSinceEpoch.toString()).toString(),
-      conversationId: (json['conversationId'] ?? json['roomId'] ?? 'default_conversation').toString(),
+      id: (json['id'] ??
+              json['_id'] ??
+              json['messageId'] ??
+              DateTime.now().millisecondsSinceEpoch.toString())
+          .toString(),
+      conversationId:
+          (json['conversationId'] ?? json['roomId'] ?? 'default_conversation')
+              .toString(),
       senderId: sender,
-      receiverId: (json['receiverId'] ?? json['recipient'] ?? json['to'] ?? '').toString(),
+      receiverId: (json['receiverId'] ?? json['recipient'] ?? json['to'] ?? '')
+          .toString(),
       senderName: (json['senderName'] ?? json['name'] ?? 'Usuario').toString(),
-      content: (json['content'] ?? json['message'] ?? json['text'] ?? '').toString(),
+      content:
+          (json['content'] ?? json['message'] ?? json['text'] ?? '').toString(),
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now()
           : (json['createdAt'] != null
-              ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+              ? DateTime.tryParse(json['createdAt'].toString()) ??
+                  DateTime.now()
               : DateTime.now()),
       status: parseStatus(json['status']),
       isMine: isMineMsg,

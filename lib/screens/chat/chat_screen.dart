@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/chat_message.dart';
-import '../../models/user_profile.dart';
 import '../../services/auth_service.dart';
+import '../../services/chat_api_service.dart';
 import '../../services/chat_socket_service.dart';
 import '../../theme/app_colors.dart';
 
@@ -36,6 +36,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   late final ChatSocketService _socketService;
   final AuthService _authService = AuthService();
+  final ChatApiService _chatApiService = ChatApiService();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -58,7 +59,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _currentUserId = widget.currentUserId ?? 'my_user_id';
     _currentUserName = widget.currentUserName ?? 'Yo';
 
-    _loadInitialSeedMessages();
     _setupSocketStreams();
     _initConnection();
   }
@@ -74,51 +74,24 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
 
+    final history = await _chatApiService.getMessages(
+      widget.conversationId,
+      currentUserId: _currentUserId,
+    );
+    if (mounted && history.isNotEmpty) {
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(history);
+      });
+      _scrollToBottom();
+    }
+    unawaited(_chatApiService.markAsRead(widget.conversationId));
+
     await _socketService.connect(
       conversationId: widget.conversationId,
       currentUserId: _currentUserId,
     );
-  }
-
-  void _loadInitialSeedMessages() {
-    final now = DateTime.now();
-    _messages.addAll([
-      ChatMessage(
-        id: 'msg_seed_1',
-        conversationId: widget.conversationId,
-        senderId: widget.peerId,
-        receiverId: _currentUserId,
-        senderName: widget.peerName,
-        content: '¡Hola! Revisé tu propuesta para el desarrollo móvil y me parece excelente.',
-        timestamp: now.subtract(const Duration(minutes: 15)),
-        status: MessageStatus.read,
-        isMine: false,
-      ),
-      ChatMessage(
-        id: 'msg_seed_2',
-        conversationId: widget.conversationId,
-        senderId: _currentUserId,
-        receiverId: widget.peerId,
-        senderName: _currentUserName,
-        content: 'Muchas gracias Carlos. Ya tengo listo el desglose de hitos para la custodia Escrow.',
-        timestamp: now.subtract(const Duration(minutes: 10)),
-        status: MessageStatus.read,
-        isMine: true,
-      ),
-      ChatMessage(
-        id: 'msg_seed_3',
-        conversationId: widget.conversationId,
-        senderId: widget.peerId,
-        receiverId: _currentUserId,
-        senderName: widget.peerName,
-        content: 'Perfecto, podemos empezar en cuanto autorice el primer fondo.',
-        timestamp: now.subtract(const Duration(minutes: 5)),
-        status: MessageStatus.delivered,
-        isMine: false,
-      ),
-    ]);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(isImmediate: true));
   }
 
   void _setupSocketStreams() {
