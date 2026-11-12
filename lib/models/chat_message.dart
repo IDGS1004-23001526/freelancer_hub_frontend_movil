@@ -31,9 +31,11 @@ class ChatMessage {
   factory ChatMessage.fromJson(Map<String, dynamic> json,
       {String? currentUserId}) {
     final sender =
-        (json['senderId'] ?? json['sender'] ?? json['from'] ?? '').toString();
+        (json['senderId'] ?? json['sender'] ?? json['from'] ?? '').toString().trim();
     final isMineMsg = json['isMine'] == true ||
-        (currentUserId != null && sender == currentUserId);
+        (currentUserId != null &&
+            currentUserId.trim().isNotEmpty &&
+            sender.toLowerCase() == currentUserId.trim().toLowerCase());
 
     MessageStatus parseStatus(dynamic raw) {
       final s = raw?.toString().toLowerCase();

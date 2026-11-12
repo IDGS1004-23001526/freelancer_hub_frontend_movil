@@ -119,8 +119,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _setupSocketStreams() {
     // 1. Mensajes recibidos en tiempo real
-    _messageSubscription = _socketService.onMessageReceived.listen((message) {
+    _messageSubscription = _socketService.onMessageReceived.listen((rawMessage) {
       if (!mounted) return;
+      final isMineResolved = rawMessage.isMine ||
+          (rawMessage.senderId.trim().isNotEmpty &&
+              _currentUserId.trim().isNotEmpty &&
+              rawMessage.senderId.trim().toLowerCase() == _currentUserId.trim().toLowerCase());
+      final message = rawMessage.copyWith(isMine: isMineResolved);
+
       setState(() {
         final existingIndex = _messages.indexWhere((m) => m.id == message.id);
         if (existingIndex != -1) {
@@ -201,12 +207,20 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
+    if (_currentUserId == 'my_user_id' || _currentUserId.isEmpty) {
+      final tokenUserId = await _extractUserIdFromToken();
+      if (tokenUserId != null && tokenUserId.isNotEmpty && mounted) {
+        setState(() => _currentUserId = tokenUserId);
+      }
+    }
+
+    final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
     final newMessage = ChatMessage(
-      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      id: tempId,
       conversationId: widget.conversationId,
       senderId: _currentUserId,
       receiverId: widget.peerId,
@@ -218,13 +232,30 @@ class _ChatScreenState extends State<ChatScreen> {
     );
 
     _textController.clear();
-    setState(() {
-      _messages.add(newMessage);
-    });
+    if (mounted) {
+      setState(() {
+        _messages.add(newMessage);
+      });
+    }
 
-    // Emisión en tiempo real por Socket.io
-    _socketService.sendMessage(newMessage);
-    _socketService.sendTyping(false, widget.conversationId);
+    if (_socketService.currentState == SocketConnectionState.connected) {
+      _socketService.sendMessage(newMessage);
+      _socketService.sendTyping(false, widget.conversationId);
+    } else {
+      final saved = await _chatApiService.sendMessage(
+        widget.conversationId,
+        text,
+        currentUserId: _currentUserId,
+      );
+      if (saved != null && mounted) {
+        setState(() {
+          final idx = _messages.indexWhere((m) => m.id == tempId);
+          if (idx != -1) {
+            _messages[idx] = saved.copyWith(isMine: true);
+          }
+        });
+      }
+    }
 
     _scrollToBottom();
   }
