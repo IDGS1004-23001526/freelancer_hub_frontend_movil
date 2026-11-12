@@ -10,7 +10,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
-import '../chat/chat_screen.dart';
+import '../chat/conversations_screen.dart';
 import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
 
@@ -369,7 +369,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (index == 2) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const ChatScreen()),
+              MaterialPageRoute(builder: (_) => const ConversationsScreen()),
             );
             return;
           }

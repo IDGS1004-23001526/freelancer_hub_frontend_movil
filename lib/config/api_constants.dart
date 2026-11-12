@@ -1,6 +1,9 @@
 class ApiConstants {
-  // IP real de tu tarjeta Wi-Fi (usada para dispositivos físicos en la misma red)
-  static const String wifiBaseUrl = 'http://10.75.102.5:4000/api/v1';
+  // IP real de tu tarjeta Wi-Fi actual (usada para dispositivos físicos en la misma red)
+  static const String wifiBaseUrl = 'http://192.168.100.9:4000/api/v1';
+
+  // IP secundaria / Ethernet
+  static const String ethernetBaseUrl = 'http://10.174.71.174:4000/api/v1';
 
   // IP del adaptador virtual / Ethernet (VirtualBox / Host-Only)
   static const String virtualBaseUrl = 'http://192.168.56.1:4000/api/v1';
@@ -11,13 +14,13 @@ class ApiConstants {
   // URL para dispositivos con adb reverse / navegador web / escritorio
   static const String localBaseUrl = 'http://127.0.0.1:4000/api/v1';
 
-  // URL principal activa (configurada por defecto en tu red Wi-Fi)
+  // URL principal activa
   static const String baseUrl = wifiBaseUrl;
 
   // Lista ordenada de URLs base candidatas para fallback automático:
-  // La app prueba en orden y selecciona automáticamente la primera que responda
   static const List<String> candidateBaseUrls = [
     wifiBaseUrl,
+    ethernetBaseUrl,
     virtualBaseUrl,
     emulatorBaseUrl,
     localBaseUrl,

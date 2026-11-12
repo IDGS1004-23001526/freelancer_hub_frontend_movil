@@ -156,7 +156,11 @@ class ProfileService {
 
           if (response.statusCode == 200 || response.statusCode == 201) {
             final data = jsonDecode(response.body);
-            final newUrl = data['avatarUrl'] ?? data['url'] ?? data['avatar'];
+            final payload = data is Map<String, dynamic> ? data['data'] : null;
+            final newUrl = (payload is Map<String, dynamic> ? payload['avatarUrl'] : null) ??
+                data['avatarUrl'] ??
+                data['url'] ??
+                data['avatar'];
             if (newUrl != null && newUrl is String) {
               final cached = await _authService.getCachedUserProfile();
               if (cached != null) {
