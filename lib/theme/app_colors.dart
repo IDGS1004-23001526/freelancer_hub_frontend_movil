@@ -9,4 +9,6 @@ class AppColors {
   static const Color textSecondary = Color(0xFF757575);
   static const Color border = Color(0xFFE5E5E5);
   static const Color accentGreen = Color(0xFF4CAF50);
+  static const Color chipBackground = Color(0xFFEFECE6);
+  static const Color divider = Color(0xFFEEEEEE);
 }

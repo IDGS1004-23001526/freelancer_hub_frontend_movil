@@ -6,6 +6,7 @@ import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/role_selection_card.dart';
 import '../profile/profile_screen.dart';
+import '../home/explorar_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -53,12 +54,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (success) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        MaterialPageRoute(builder: (_) => const ExplorarScreen()),
         (route) => false,
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error al crear la cuenta en el servidor.')),
+        const SnackBar(
+            content: Text('Error al crear la cuenta en el servidor.')),
       );
     }
   }
@@ -76,7 +78,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         title: Text(
           'Crear Cuenta',
-          style: GoogleFonts.poppins(color: AppColors.textPrimary, fontWeight: FontWeight.w600, fontSize: 16),
+          style: GoogleFonts.poppins(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 16),
         ),
         centerTitle: true,
       ),
@@ -90,24 +95,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
               children: [
                 Text(
                   'Crea tu cuenta',
-                  style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  style: GoogleFonts.poppins(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   '¿Cómo deseas utilizar la plataforma hoy? Puedes alternar entre ambos modos más adelante.',
-                  style: GoogleFonts.poppins(fontSize: 13, color: AppColors.textSecondary),
+                  style: GoogleFonts.poppins(
+                      fontSize: 13, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 18),
                 RoleSelectionCard(
                   title: 'Quiero contratar talento',
-                  subtitle: 'Publica vacantes, descubre especialistas verificados y gestiona entregas con contratos protegidos.',
+                  subtitle:
+                      'Publica vacantes, descubre especialistas verificados y gestiona entregas con contratos protegidos.',
                   icon: Icons.work_outline,
                   isSelected: _selectedRoleIndex == 0,
                   onTap: () => setState(() => _selectedRoleIndex = 0),
                 ),
                 RoleSelectionCard(
                   title: 'Quiero ofrecer mis servicios',
-                  subtitle: 'Postula a proyectos internacionales, construye reputación y cobra puntualmente en tu moneda local.',
+                  subtitle:
+                      'Postula a proyectos internacionales, construye reputación y cobra puntualmente en tu moneda local.',
                   icon: Icons.laptop_chromebook,
                   isSelected: _selectedRoleIndex == 1,
                   onTap: () => setState(() => _selectedRoleIndex = 1),
@@ -118,7 +129,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   labelText: 'Nombre y apellido',
                   hintText: 'Ej. Sofía Morales',
                   prefixIcon: Icons.person_outline,
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Ingresa tu nombre' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Ingresa tu nombre'
+                      : null,
                 ),
                 const SizedBox(height: 14),
                 CustomTextField(
@@ -127,7 +140,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   hintText: 'sofia@empresa.com',
                   prefixIcon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
-                  validator: (v) => (v == null || !v.contains('@')) ? 'Ingresa un correo válido' : null,
+                  validator: (v) => (v == null || !v.contains('@'))
+                      ? 'Ingresa un correo válido'
+                      : null,
                 ),
                 const SizedBox(height: 14),
                 CustomTextField(
@@ -136,10 +151,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   hintText: 'Crea una clave segura',
                   prefixIcon: Icons.lock_outline,
                   obscureText: _obscurePassword,
-                  validator: (v) => (v == null || v.length < 8) ? 'Mínimo 8 caracteres' : null,
+                  validator: (v) => (v == null || v.length < 8)
+                      ? 'Mínimo 8 caracteres'
+                      : null,
                   suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: AppColors.textSecondary),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: AppColors.textSecondary),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
                 const SizedBox(height: 24),

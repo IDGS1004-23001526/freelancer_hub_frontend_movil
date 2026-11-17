@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
 import '../profile/profile_screen.dart';
+import '../home/explorar_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -46,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        MaterialPageRoute(builder: (_) => const ExplorarScreen()),
         (route) => false,
       );
     } else {
