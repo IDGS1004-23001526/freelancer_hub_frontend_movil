@@ -1,6 +1,6 @@
 class ApiConstants {
   // IP real de tu tarjeta Wi-Fi actual (usada para dispositivos físicos en la misma red)
-  static const String wifiBaseUrl = 'http://192.168.137.27:4000/api/v1';
+  static const String wifiBaseUrl = 'http://192.168.100.9:4000/api/v1';
 
   // IP secundaria / Ethernet
   static const String ethernetBaseUrl = 'http://10.174.71.174:4000/api/v1';

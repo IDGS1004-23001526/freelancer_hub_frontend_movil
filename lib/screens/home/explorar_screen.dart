@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/convocatoria.dart';
+import '../../services/project_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/advanced_filters_modal.dart';
 import '../chat/conversations_screen.dart';
@@ -13,8 +14,10 @@ class ExplorarScreen extends StatefulWidget {
 }
 
 class _ExplorarScreenState extends State<ExplorarScreen> {
+  final ProjectService _projectService = ProjectService();
   int _currentIndex = 0;
   String _searchQuery = '';
+  bool _isLoading = false;
 
   final Set<String> _selectedSkills = {};
 
@@ -32,7 +35,37 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
     'Java',
   ];
 
-  final List<Convocatoria> _convocatorias = [
+  List<Convocatoria> _convocatorias = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProjects();
+  }
+
+  Future<void> _loadProjects() async {
+    setState(() => _isLoading = true);
+    try {
+      final remoteProjects = await _projectService.getProjects();
+      if (mounted) {
+        setState(() {
+          _convocatorias = remoteProjects.isNotEmpty
+              ? remoteProjects
+              : _fallbackMocks;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _convocatorias = _fallbackMocks;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  static final List<Convocatoria> _fallbackMocks = [
     Convocatoria(
       id: '1',
       title: 'E-commerce móvil con pasarela de pagos',
@@ -328,33 +361,45 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
 
             // Lista de resultados o Estado Vacío
             Expanded(
-              child: filteredList.isEmpty
-                  ? _buildEmptyState()
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${filteredList.length} convocatorias activas',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: AppColors.textPrimary,
-                              ),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primary,
+                      ),
+                    )
+                  : RefreshIndicator(
+                      color: AppColors.primary,
+                      onRefresh: _loadProjects,
+                      child: filteredList.isEmpty
+                          ? _buildEmptyState()
+                          : ListView(
+                              padding: const EdgeInsets.all(16),
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '${filteredList.length} convocatorias activas',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    const Text(
+                                      'Recientes ▾',
+                                      style: TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                ...filteredList
+                                    .map((item) => _buildConvocatoriaCard(item)),
+                              ],
                             ),
-                            const Text(
-                              'Recientes ▾',
-                              style: TextStyle(
-                                  color: AppColors.textSecondary, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        ...filteredList
-                            .map((item) => _buildConvocatoriaCard(item)),
-                      ],
                     ),
             ),
           ],
