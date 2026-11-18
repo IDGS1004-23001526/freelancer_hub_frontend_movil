@@ -11,6 +11,7 @@ import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
 import '../chat/conversations_screen.dart';
+import '../home/explorar_screen.dart';
 import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
 
@@ -123,7 +124,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -366,6 +367,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentNavIndex,
         onTap: (index) {
+          if (index == 0) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ExplorarScreen()),
+            );
+            return;
+          }
           if (index == 2) {
             Navigator.push(
               context,

@@ -14,4 +14,8 @@ class AppColors {
   static const Color chatBubbleMine = Color(0xFF5A0F24); // Vino #5A0F24
   static const Color chatBubblePeer = Color(0xFFF3EFE6); // Crema #F3EFE6
   static const Color chatReadCheck = Color(0xFF64B5F6);  // Azul suave para doble check de leído
+
+  // Colores para pantalla de Explorar / Home (HU-2)
+  static const Color chipBackground = Color(0xFFEFECE6);
+  static const Color divider = Color(0xFFEEEEEE);
 }
