@@ -28,7 +28,7 @@ class UserProfile {
       location: json['location'] ?? '',
       bio: json['bio'] ?? '',
       avatarUrl: json['avatarUrl'] ?? json['avatar'],
-      skills: json['skills'] != null ? List<String>.from(json['skills']) : [],
+      skills: (json['skills'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
     );
   }
 

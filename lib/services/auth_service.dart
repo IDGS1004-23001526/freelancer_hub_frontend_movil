@@ -7,15 +7,23 @@ class AuthService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   Future<void> saveToken(String token) async {
-    await _storage.write(key: 'jwt_token', value: token);
+    try {
+      await _storage.write(key: 'jwt_token', value: token);
+    } catch (_) {}
   }
 
   Future<String?> getToken() async {
-    return await _storage.read(key: 'jwt_token');
+    try {
+      return await _storage.read(key: 'jwt_token');
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> logout() async {
-    await _storage.delete(key: 'jwt_token');
+    try {
+      await _storage.delete(key: 'jwt_token');
+    } catch (_) {}
   }
 
   Future<bool> login(String email, String password) async {

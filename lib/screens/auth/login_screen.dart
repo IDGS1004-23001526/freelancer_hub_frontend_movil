@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/auth_service.dart';
+import '../../services/connectivity_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
-import '../profile/profile_screen.dart';
+import '../main_navigation_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
+  final _connectivity = ConnectivityService();
   bool _isLoading = false;
 
   @override
@@ -24,6 +26,16 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _enterOfflineMode() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MainNavigationScreen(initialIndex: 0),
+      ),
+      (route) => false,
+    );
   }
 
   Future<void> _submitLogin() async {
@@ -38,6 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     setState(() => _isLoading = true);
+    final isOnline = await _connectivity.checkConnection();
     final success = await _authService.login(email, pass);
     setState(() => _isLoading = false);
 
@@ -46,14 +59,40 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success) {
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        MaterialPageRoute(
+          builder: (_) => const MainNavigationScreen(initialIndex: 0),
+        ),
         (route) => false,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Credenciales incorrectas o error en el backend')),
-      );
+      if (!isOnline) {
+        // Dispositivo sin conexión
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+                'Sin conexión al servidor. Puedes navegar en Modo Offline.'),
+            backgroundColor: Colors.deepOrange,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Entrar Offline',
+              textColor: Colors.white,
+              onPressed: _enterOfflineMode,
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+                'Credenciales incorrectas o backend no disponible.'),
+            action: SnackBarAction(
+              label: 'Modo Offline',
+              textColor: Colors.amberAccent,
+              onPressed: _enterOfflineMode,
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -78,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,6 +159,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 isLoading: _isLoading,
                 onPressed: _submitLogin,
               ),
+              const SizedBox(height: 16),
+              Center(
+                child: TextButton.icon(
+                  onPressed: _enterOfflineMode,
+                  icon: const Icon(Icons.cloud_off_rounded,
+                      size: 16, color: AppColors.primary),
+                  label: Text(
+                    '¿Sin conexión? Entrar en Modo Offline',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),

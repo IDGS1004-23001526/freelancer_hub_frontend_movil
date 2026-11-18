@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/primary_button.dart';
+import '../main_navigation_screen.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
 
@@ -77,7 +78,28 @@ class OnboardingScreen extends StatelessWidget {
                   );
                 },
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
+              // Acceso directo a Modo Offline para pruebas o sin conexión
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MainNavigationScreen(initialIndex: 0),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.cloud_off_rounded, size: 16, color: AppColors.primary),
+                label: Text(
+                  'Explorar en Modo Offline',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
               Text(
                 'Al continuar, aceptas nuestros Términos y Política de Privacidad',
                 textAlign: TextAlign.center,
