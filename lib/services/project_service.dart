@@ -1,16 +1,18 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import '../models/convocatoria.dart';
+import 'api_client.dart';
 import 'auth_service.dart';
 
 class ProjectService {
-  final AuthService _authService = AuthService();
-  final http.Client _httpClient;
+  final ApiClient _apiClient;
 
-  ProjectService({http.Client? httpClient})
-      : _httpClient = httpClient ?? http.Client();
+  ProjectService({ApiClient? apiClient, http.Client? httpClient})
+      : _apiClient = apiClient ?? ApiClient.instance;
 
   /// Consulta el feed de convocatorias del backend (`GET /api/v1/projects`)
+  /// El token de autorización y la renovación transparente (401 refresh token)
+  /// son manejados automáticamente por [ApiClient].
   Future<List<Convocatoria>> getProjects({
     String? search,
     String? category,
@@ -18,9 +20,7 @@ class ProjectService {
     double? maxBudget,
     List<String>? skills,
   }) async {
-    final token = await _authService.getToken();
-
-    final queryParams = <String, String>{};
+    final queryParams = <String, dynamic>{};
     if (search != null && search.trim().isNotEmpty) {
       queryParams['search'] = search.trim();
     }
@@ -41,24 +41,22 @@ class ProjectService {
 
     for (final base in baseUrls) {
       try {
-        final parsed = Uri.parse('$base/projects');
-        final uri = parsed.replace(
+        final response = await _apiClient.dio.get(
+          '$base/projects',
           queryParameters: queryParams.isNotEmpty ? queryParams : null,
+          options: Options(
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          ),
         );
 
-        final response = await _httpClient.get(
-          uri,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            if (token != null && token.isNotEmpty)
-              'Authorization': 'Bearer $token',
-          },
-        ).timeout(const Duration(seconds: 4));
-
         if (response.statusCode == 200) {
-          final decoded = jsonDecode(response.body);
-          final data = decoded['data'];
+          AuthService.activeBaseUrl = base;
+          final dynamic body = response.data;
+          final dynamic data =
+              (body is Map<String, dynamic>) ? body['data'] : body;
           if (data is List) {
             return data
                 .map((item) =>

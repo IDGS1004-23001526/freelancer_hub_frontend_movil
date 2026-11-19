@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_constants.dart';
 import '../models/user_profile.dart';
+import 'api_client.dart';
 import 'notification_socket_service.dart';
 
 /// Resultado detallado de una operación de autenticación (Login / Registro).
@@ -41,6 +42,15 @@ class AuthService {
 
   Future<String?> getToken() async {
     return await _storage.read(key: 'jwt_token');
+  }
+
+  Future<String?> getRefreshToken() async {
+    return await _storage.read(key: 'refresh_token');
+  }
+
+  /// Renueva el token de acceso invocando el flujo de refresh token
+  Future<String?> refreshToken() async {
+    return await ApiClient.instance.refreshToken();
   }
 
   Future<void> saveUserProfile(UserProfile user) async {
