@@ -1,6 +1,6 @@
 class ApiConstants {
   // IP real de tu tarjeta Wi-Fi actual (usada para dispositivos físicos en la misma red)
-  static const String wifiBaseUrl = 'http://192.168.100.9:4000/api/v1';
+  static const String wifiBaseUrl = 'http://192.168.1.7:4000/api/v1';
 
   // IP secundaria / Ethernet
   static const String ethernetBaseUrl = 'http://10.174.71.174:4000/api/v1';
@@ -36,6 +36,26 @@ class ApiConstants {
   // Endpoints de usuario / perfil
   static const String profile = '$baseUrl/users/me/profile';
   static const String updateAvatar = '$baseUrl/users/me/avatar';
+
+  // Endpoints de convocatorias
+  static const String convocatorias = '$emulatorBaseUrl/convocatorias';
+  static const String postulaciones = '$emulatorBaseUrl/postulaciones';
+
+  // Endpoints HU-06: Entrega de hitos
+  static String milestoneDeliveries(String milestoneId) =>
+      '$emulatorBaseUrl/milestones/$milestoneId/deliveries';
+
+  // Endpoints HU-07: Aprobación de hitos
+  static String milestoneDetail(String milestoneId) =>
+      '$emulatorBaseUrl/milestones/$milestoneId';
+  static String approveMilestone(String milestoneId) =>
+      '$emulatorBaseUrl/milestones/$milestoneId/approve';
+  static String requestCorrections(String milestoneId) =>
+      '$emulatorBaseUrl/milestones/$milestoneId/adjustments';
+
+  // Endpoints HU-14: Billetera
+  static const String wallet = '$emulatorBaseUrl/wallet';
+  static const String walletWithdraw = '$emulatorBaseUrl/wallet/withdraw';
 
   // Obtiene la URL del servidor WebSocket/Socket.io eliminando el prefijo de API REST
   static String getSocketUrl([String? explicitBaseUrl]) {
