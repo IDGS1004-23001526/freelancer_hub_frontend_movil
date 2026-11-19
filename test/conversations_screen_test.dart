@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:freelancer_hub_frontend_movil/models/chat_conversation.dart';
-import 'package:freelancer_hub_frontend_movil/screens/chat/chat_screen.dart';
-import 'package:freelancer_hub_frontend_movil/screens/chat/conversations_screen.dart';
+import 'package:freelance_hub_movil/models/chat_conversation.dart';
+import 'package:freelance_hub_movil/screens/chat/chat_screen.dart';
+import 'package:freelance_hub_movil/screens/chat/conversations_screen.dart';
 
 void main() {
   final testConversations = [
