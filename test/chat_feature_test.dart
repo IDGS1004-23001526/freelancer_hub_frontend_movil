@@ -13,6 +13,10 @@ class MockChatSocketService extends ChatSocketService {
   final _mockStatusController = StreamController<Map<String, dynamic>>.broadcast();
   final _mockTypingController = StreamController<bool>.broadcast();
 
+  SocketConnectionState _state = SocketConnectionState.connected;
+  @override
+  SocketConnectionState get currentState => _state;
+
   final List<ChatMessage> sentMessages = [];
 
   @override
@@ -46,6 +50,7 @@ class MockChatSocketService extends ChatSocketService {
   }
 
   void emitConnectionState(SocketConnectionState state) {
+    _state = state;
     _mockConnectionController.add(state);
   }
 
@@ -75,6 +80,93 @@ void main() {
   });
 
   group('FLH-MOB-CHAT (HU-11) - Chat en Vivo, Sockets y Notificaciones', () {
+    testWidgets('OBJETIVO: Iniciar/mantener conversación, verificar recepción de mensajes y envío de Sticker con la API', (
+      WidgetTester tester,
+    ) async {
+      final mockSocket = MockChatSocketService();
+
+      // 1. Iniciar la conversación con el cliente/freelancer (Carlos Méndez)
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            conversationId: 'conv_proyecto_e2e',
+            peerName: 'Carlos Méndez',
+            currentUserId: 'user_freelancer_01',
+            currentUserName: 'Mi Perfil',
+            socketService: mockSocket,
+            initialMessages: const [], // Comienza limpia para iniciar el hilo
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verificar que se inició la interfaz del chat con el contacto
+      expect(find.text('Carlos Méndez'), findsOneWidget);
+      expect(find.byKey(const Key('chat_input_field')), findsOneWidget);
+      expect(find.byKey(const Key('chat_send_button')), findsOneWidget);
+
+      // 2. Enviar primer mensaje para iniciar la conversación
+      const mensajeInicial = 'Hola Carlos, inicio el hito 1 del desarrollo de la app móvil.';
+      await tester.enterText(
+        find.byKey(const Key('chat_input_field')),
+        mensajeInicial,
+      );
+      await tester.pump();
+
+      // Presionar el botón de enviar
+      await tester.tap(find.byKey(const Key('chat_send_button')));
+      await tester.pumpAndSettle();
+
+      // VALIDACIÓN: El mensaje debe aparecer de inmediato en pantalla
+      expect(find.text(mensajeInicial), findsOneWidget);
+
+      // VALIDACIÓN: El socket/API de envío debe haber procesado y despachado el mensaje
+      expect(mockSocket.sentMessages.length, equals(1));
+      expect(mockSocket.sentMessages.first.content, equals(mensajeInicial));
+
+      // 3. Mantener la conversación: Simular que la contraparte responde en tiempo real
+      const respuestaCarlos = '¡Excelente noticia! Ya reviso los entregables para liberar el hito.';
+      mockSocket.emitIncomingMessage(
+        ChatMessage(
+          id: 'incoming_carlos_001',
+          conversationId: 'conv_proyecto_e2e',
+          senderId: 'carlos_mendez_id',
+          receiverId: 'user_freelancer_01',
+          senderName: 'Carlos Méndez',
+          content: respuestaCarlos,
+          timestamp: DateTime.now(),
+          status: MessageStatus.delivered,
+          isMine: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // VALIDACIÓN OBJETIVO: Comprobar que la respuesta SÍ llegó y se renderiza en la conversación
+      expect(find.text(respuestaCarlos), findsOneWidget);
+
+      // 4. Enviar un Sticker con la API implementada para cerrar o celebrar el acuerdo
+      await tester.tap(find.byKey(const Key('chat_sticker_button')));
+      await tester.pumpAndSettle();
+
+      // Cambiar a la pestaña de Stickers
+      expect(find.text('Stickers'), findsOneWidget);
+      await tester.tap(find.text('Stickers'));
+      await tester.pumpAndSettle();
+
+      // Seleccionar el sticker oficial "¡Trato Hecho!" (deal_done)
+      expect(find.text('¡Trato Hecho!'), findsOneWidget);
+      await tester.tap(find.text('¡Trato Hecho!'));
+      await tester.pumpAndSettle();
+
+      // VALIDACIÓN OBJETIVO: Verificar que el sticker se renderizó en la conversación
+      expect(find.text('¡Trato Hecho!'), findsOneWidget);
+      expect(find.byIcon(Icons.handshake_outlined), findsWidgets);
+
+      // VALIDACIÓN OBJETIVO: Verificar que la API/Socket transmitió el sticker con el formato establecido
+      expect(mockSocket.sentMessages.any((m) => m.content.contains('deal_done')), isTrue);
+      expect(mockSocket.sentMessages.any((m) => m.attachmentUrl == 'sticker:deal_done'), isTrue);
+    });
+
     test('ChatMessage model serializa correctamente y asigna status y tiempo', () {
       final now = DateTime(2026, 11, 6, 15, 30);
       final msg = ChatMessage(
@@ -252,6 +344,84 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump();
       expect(find.text('Reconectando al servidor de chat automáticamente...'), findsNothing);
+    });
+
+    testWidgets('Envío y visualización de Stickers en el chat', (
+      WidgetTester tester,
+    ) async {
+      final mockSocket = MockChatSocketService();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            peerName: 'Carlos Méndez',
+            currentUserId: 'my_user_id',
+            currentUserName: 'Yo',
+            socketService: mockSocket,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Abrir selector de GIFs y stickers pulsando el botón dedicado
+      await tester.tap(find.byKey(const Key('chat_sticker_button')));
+      await tester.pumpAndSettle();
+
+      // Debe abrirse el selector estilo WhatsApp con pestañas de GIFs Animados y Stickers
+      expect(find.text('GIFs Animados'), findsOneWidget);
+      expect(find.text('Stickers'), findsOneWidget);
+
+      // Cambiar a la pestaña de Stickers
+      await tester.tap(find.text('Stickers'));
+      await tester.pumpAndSettle();
+
+      // Seleccionar el sticker "¡Trato Hecho!"
+      expect(find.text('¡Trato Hecho!'), findsOneWidget);
+      await tester.tap(find.text('¡Trato Hecho!'));
+      await tester.pumpAndSettle();
+
+      // El sticker seleccionado debe mostrarse en la conversación
+      expect(find.text('¡Trato Hecho!'), findsOneWidget);
+      expect(find.byIcon(Icons.handshake_outlined), findsWidgets);
+
+      // El socket debe haber recibido el sticker
+      expect(mockSocket.sentMessages.any((m) => m.content.contains('deal_done')), isTrue);
+    });
+
+    testWidgets('Envío y visualización de GIFs animados estilo WhatsApp', (
+      WidgetTester tester,
+    ) async {
+      final mockSocket = MockChatSocketService();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            peerName: 'Carlos Méndez',
+            currentUserId: 'my_user_id',
+            currentUserName: 'Yo',
+            socketService: mockSocket,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Abrir selector
+      await tester.tap(find.byKey(const Key('chat_sticker_button')));
+      await tester.pumpAndSettle();
+
+      // Verificar pestaña de GIFs Animados
+      expect(find.text('GIFs Animados'), findsOneWidget);
+      expect(find.text('Programando a tope'), findsOneWidget);
+
+      // Seleccionar el primer GIF animado
+      await tester.tap(find.text('Programando a tope'));
+      await tester.pumpAndSettle();
+
+      // Debe mostrarse en el chat la burbuja del GIF con badge 'GIF'
+      expect(find.text('GIF'), findsWidgets);
+
+      // El socket debe haber emitido el GIF
+      expect(mockSocket.sentMessages.any((m) => m.content.contains('[gif:')), isTrue);
     });
   });
 }

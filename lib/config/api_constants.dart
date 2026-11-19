@@ -1,12 +1,6 @@
 class ApiConstants {
-  // IP real de tu tarjeta Wi-Fi actual (usada para dispositivos físicos en la misma red)
-  static const String wifiBaseUrl = 'http://192.168.1.7:4000/api/v1';
-
-  // IP secundaria / Ethernet
-  static const String ethernetBaseUrl = 'http://10.174.71.174:4000/api/v1';
-
-  // IP del adaptador virtual / Ethernet (VirtualBox / Host-Only)
-  static const String virtualBaseUrl = 'http://192.168.56.1:4000/api/v1';
+  // URL de Cloudflare (Producción / Remoto - No requiere túneles ni backend local encendido)
+  static const String cloudBaseUrl = 'https://api.freelancerhub.org/api/v1';
 
   // Base URL para emulador Android de Android Studio (10.0.2.2 apunta al localhost del PC)
   static const String emulatorBaseUrl = 'http://10.0.2.2:4000/api/v1';
@@ -14,16 +8,28 @@ class ApiConstants {
   // URL para dispositivos con adb reverse / navegador web / escritorio
   static const String localBaseUrl = 'http://127.0.0.1:4000/api/v1';
 
-  // URL principal activa
-  static const String baseUrl = wifiBaseUrl;
+  // IP real de tu tarjeta Wi-Fi actual (usada para dispositivos físicos en la misma red)
+  static const String wifiBaseUrl = 'http://192.168.100.9:4000/api/v1';
+  static const String wifiHotspotBaseUrl = 'http://192.168.137.50:4000/api/v1';
+
+  // IP secundaria / Ethernet
+  static const String ethernetBaseUrl = 'http://10.174.71.174:4000/api/v1';
+
+  // IP del adaptador virtual / Ethernet (VirtualBox / Host-Only)
+  static const String virtualBaseUrl = 'http://192.168.56.1:4000/api/v1';
+
+  // URL principal activa (Apuntando a Cloudflare)
+  static const String baseUrl = cloudBaseUrl;
 
   // Lista ordenada de URLs base candidatas para fallback automático:
   static const List<String> candidateBaseUrls = [
+    cloudBaseUrl,
     wifiBaseUrl,
-    ethernetBaseUrl,
-    virtualBaseUrl,
     emulatorBaseUrl,
     localBaseUrl,
+    wifiHotspotBaseUrl,
+    ethernetBaseUrl,
+    virtualBaseUrl,
   ];
 
   // Endpoints de autenticación (API v1)
