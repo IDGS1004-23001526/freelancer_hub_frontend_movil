@@ -67,7 +67,7 @@ class ChatSocketService {
     _updateState(SocketConnectionState.connecting);
     _connectedToken = token;
 
-    final socketBaseUrl = ApiConstants.getSocketUrl(explicitUrl);
+    final socketBaseUrl = ApiConstants.getSocketUrl(explicitUrl ?? AuthService.activeBaseUrl);
 
     try {
       _socket = IO.io(
@@ -126,10 +126,18 @@ class ChatSocketService {
       _updateState(SocketConnectionState.reconnecting);
     });
 
+    _socket!.on('socket_error', (data) {
+      // Registrar posibles errores de suscripción o acceso
+    });
+
     // Escucha de mensajes entrantes en tiempo real
     void handleIncomingMessage(dynamic data) {
-      if (data is Map<String, dynamic>) {
-        final message = ChatMessage.fromJson(data, currentUserId: _currentUserId);
+      if (data is Map) {
+        final map = Map<String, dynamic>.from(data);
+        if (!map.containsKey('conversationId') && map.containsKey('contractId')) {
+          map['conversationId'] = map['contractId'];
+        }
+        final message = ChatMessage.fromJson(map, currentUserId: _currentUserId);
         
         // Criterio 3: Feedback sonoro y háptico al recibir mensaje nuevo de la contraparte
         if (!message.isMine) {
@@ -148,8 +156,15 @@ class ChatSocketService {
 
     // Escucha de confirmaciones de entrega y lectura (Checks)
     void handleStatusUpdate(dynamic data) {
-      if (data is Map<String, dynamic> && !_statusController.isClosed) {
-        _statusController.add(data);
+      if (data is Map && !_statusController.isClosed) {
+        final map = Map<String, dynamic>.from(data);
+        if (!map.containsKey('status')) {
+          map['status'] = 'read';
+        }
+        if (!map.containsKey('conversationId') && map.containsKey('contractId')) {
+          map['conversationId'] = map['contractId'];
+        }
+        _statusController.add(map);
       }
     }
 
@@ -172,13 +187,27 @@ class ChatSocketService {
   }
 
   void _joinConversation(String conversationId) {
-    _socket?.emit('join_room', {'roomId': conversationId, 'conversationId': conversationId});
-    _socket?.emit('join_conversation', {'conversationId': conversationId});
+    _socket?.emit('join_room', {
+      'roomId': conversationId,
+      'contractId': conversationId,
+      'conversationId': conversationId,
+    });
+    _socket?.emit('join_conversation', {
+      'roomId': conversationId,
+      'contractId': conversationId,
+      'conversationId': conversationId,
+    });
+    _socket?.emit('join_contract', {
+      'roomId': conversationId,
+      'contractId': conversationId,
+      'conversationId': conversationId,
+    });
   }
 
   /// Emite un mensaje al socket en tiempo real
   void sendMessage(ChatMessage message) {
     final payload = message.toJson();
+    payload['contractId'] = message.conversationId;
 
     if (_socket != null && _socket!.connected) {
       _socket!.emit('send_message', payload);
@@ -192,6 +221,7 @@ class ChatSocketService {
       _socket!.emit('mark_as_read', {
         'messageId': messageId,
         'conversationId': conversationId,
+        'contractId': conversationId,
         'readAt': DateTime.now().toIso8601String(),
       });
     }
