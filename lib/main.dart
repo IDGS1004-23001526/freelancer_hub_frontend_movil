@@ -1,57 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'bloc/auth/auth_bloc.dart';
+import 'bloc/auth/auth_state.dart';
 import 'screens/auth/onboarding_screen.dart';
-import 'screens/main_navigation_screen.dart';
-import 'services/auth_service.dart';
-import 'services/connectivity_service.dart';
-import 'services/convocatoria_service.dart';
-import 'services/offline_queue_service.dart';
+import 'services/notification_socket_service.dart';
+import 'widgets/message_notification_overlay.dart';
 
-void main() async {
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Inicializar Hive
-  await Hive.initFlutter();
-
-  // Abrir cajas para caché y cola de acciones
-  await Hive.openBox('convocatoriasBox');
-  await Hive.openBox('offlineActionsBox');
-
-  // Inicializar servicios de conectividad y cola offline
-  ConnectivityService().initialize();
-  OfflineQueueService().initialize();
-  await ConvocatoriaService().initCacheIfNeeded();
-
-  // Si el usuario ya había iniciado sesión previamente, se mantiene y accede directo
-  // incluso sin conexión a internet
-  final token = await AuthService().getToken();
-  final bool hasActiveSession = token != null && token.isNotEmpty;
-
+  await NotificationSocketService.instance.initializeLocalNotifications();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
     ),
   );
-  runApp(MyApp(hasActiveSession: hasActiveSession));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final bool hasActiveSession;
-  const MyApp({super.key, this.hasActiveSession = false});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Freelance Hub',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
+    return BlocProvider<AuthBloc>(
+      create: (_) => AuthBloc(),
+      child: BlocListener<AuthBloc, AuthState>(
+        listener: (context, state) {
+          if (state.status == AuthStatus.authenticated) {
+            NotificationSocketService.instance.connectIfAuthenticated();
+          } else if (state.status == AuthStatus.unauthenticated) {
+            NotificationSocketService.instance.disconnect();
+          }
+        },
+        child: MaterialApp(
+          navigatorKey: appNavigatorKey,
+          title: 'Freelancer Hub',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+          ),
+          builder: (context, child) {
+            return MessageNotificationOverlay(
+              navigatorKey: appNavigatorKey,
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          home: const OnboardingScreen(),
+        ),
       ),
-      home: hasActiveSession
-          ? const MainNavigationScreen()
-          : const OnboardingScreen(),
     );
   }
 }

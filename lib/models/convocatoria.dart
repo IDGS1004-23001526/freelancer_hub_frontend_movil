@@ -1,101 +1,78 @@
-import 'dart:convert';
-
 class Convocatoria {
   final String id;
   final String title;
-  final String companyName;
-  final String companyInitial;
-  final String postedTime;
-  final String budget;
-  final String duration;
-  final List<String> skills;
+  final String company;
+  final String timeAgo;
   final String category;
-  final String description;
-  final bool isApplied;
+  final List<String> tags;
+  final double budget;
+  final int remainingDays;
+  final String paymentType; // 'Precio fijo', 'Por hitos'
+  final String remoteType; // 'Remoto', 'Presencial'
+  final String? description;
 
-  const Convocatoria({
+  Convocatoria({
     required this.id,
     required this.title,
-    required this.companyName,
-    required this.companyInitial,
-    required this.postedTime,
-    required this.budget,
-    required this.duration,
-    required this.skills,
+    required this.company,
+    required this.timeAgo,
     required this.category,
-    this.description = '',
-    this.isApplied = false,
+    required this.tags,
+    required this.budget,
+    required this.remainingDays,
+    required this.paymentType,
+    required this.remoteType,
+    this.description,
   });
 
-  Convocatoria copyWith({
-    String? id,
-    String? title,
-    String? companyName,
-    String? companyInitial,
-    String? postedTime,
-    String? budget,
-    String? duration,
-    List<String>? skills,
-    String? category,
-    String? description,
-    bool? isApplied,
-  }) {
+  factory Convocatoria.fromJson(Map<String, dynamic> json) {
+    final rawSkills = json['skills'];
+    List<String> tagsList = [];
+    if (rawSkills is List) {
+      tagsList = rawSkills.map((e) => e.toString()).toList();
+    }
+
+    final createdAt = json['createdAt'] != null
+        ? DateTime.tryParse(json['createdAt'].toString())
+        : null;
+
+    final estimatedDate = json['estimatedDate'] != null
+        ? DateTime.tryParse(json['estimatedDate'].toString())
+        : null;
+
+    int daysRemaining = 30;
+    if (estimatedDate != null) {
+      final diff = estimatedDate.difference(DateTime.now()).inDays;
+      daysRemaining = diff > 0 ? diff : 1;
+    }
+
+    String timeAgoStr = 'Convocatoria activa';
+    if (createdAt != null) {
+      final hours = DateTime.now().difference(createdAt).inHours;
+      if (hours < 1) {
+        timeAgoStr = 'Hace unos minutos · Convocatoria activa';
+      } else if (hours < 24) {
+        timeAgoStr = 'Hace $hours h · Convocatoria activa';
+      } else {
+        final days = (hours / 24).floor();
+        timeAgoStr = 'Hace $days d · Convocatoria activa';
+      }
+    }
+
     return Convocatoria(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      companyName: companyName ?? this.companyName,
-      companyInitial: companyInitial ?? this.companyInitial,
-      postedTime: postedTime ?? this.postedTime,
-      budget: budget ?? this.budget,
-      duration: duration ?? this.duration,
-      skills: skills ?? this.skills,
-      category: category ?? this.category,
-      description: description ?? this.description,
-      isApplied: isApplied ?? this.isApplied,
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Sin título',
+      company: json['company']?.toString() ?? 'Cliente verificado',
+      timeAgo: timeAgoStr,
+      category: json['category']?.toString() ?? 'Desarrollo de software',
+      tags: tagsList.isNotEmpty ? tagsList : ['Software', 'Tecnología'],
+      budget: (json['budget'] is num)
+          ? (json['budget'] as num).toDouble()
+          : double.tryParse(json['budget']?.toString() ?? '0') ?? 0.0,
+      remainingDays: daysRemaining,
+      paymentType: 'Precio fijo',
+      remoteType: 'Remoto',
+      description: json['description']?.toString(),
     );
   }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'companyName': companyName,
-      'companyInitial': companyInitial,
-      'postedTime': postedTime,
-      'budget': budget,
-      'duration': duration,
-      'skills': skills,
-      'category': category,
-      'description': description,
-      'isApplied': isApplied,
-    };
-  }
-
-  factory Convocatoria.fromMap(Map<dynamic, dynamic> map) {
-    return Convocatoria(
-      id: map['id']?.toString() ?? '',
-      title: map['title']?.toString() ?? '',
-      companyName: map['companyName']?.toString() ?? '',
-      companyInitial: (map['companyInitial']?.toString().isNotEmpty == true)
-          ? map['companyInitial'].toString()
-          : (map['companyName'] != null && map['companyName'].toString().trim().isNotEmpty
-              ? map['companyName'].toString().trim().substring(0, 1).toUpperCase()
-              : 'C'),
-      postedTime: map['postedTime']?.toString() ?? 'Reciente',
-      budget: map['budget']?.toString() ?? '\$0 USD',
-      duration: map['duration']?.toString() ?? 'Por definir',
-      skills: (map['skills'] as List<dynamic>?)
-              ?.map((item) => item.toString())
-              .toList() ??
-          [],
-      category: map['category']?.toString() ?? 'General',
-      description: map['description']?.toString() ?? '',
-      isApplied: map['isApplied'] == true,
-    );
-  }
-
-  String toJson() => json.encode(toMap());
-
-  factory Convocatoria.fromJson(String source) =>
-      Convocatoria.fromMap(json.decode(source) as Map<String, dynamic>);
 }
