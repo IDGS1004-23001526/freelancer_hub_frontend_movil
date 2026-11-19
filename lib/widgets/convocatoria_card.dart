@@ -123,7 +123,7 @@ class ConvocatoriaCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  convocatoria.budget,
+                  convocatoria.budgetFormatted,
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,

@@ -116,7 +116,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
   }
 
   void _openProposalDialog(Convocatoria c) {
-    final montoController = TextEditingController(text: c.budget.replaceAll(RegExp(r'[^0-9]'), ''));
+    final montoController = TextEditingController(text: c.budgetFormatted.replaceAll(RegExp(r'[^0-9]'), ''));
     final mensajeController = TextEditingController();
 
     showModalBottomSheet(

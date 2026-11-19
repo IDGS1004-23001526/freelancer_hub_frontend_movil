@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'bloc/auth/auth_bloc.dart';
 import 'bloc/auth/auth_state.dart';
 import 'screens/auth/onboarding_screen.dart';
@@ -11,6 +12,12 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializar Hive para caché offline (HU-Offline / Rúbrica)
+  await Hive.initFlutter();
+  await Hive.openBox('convocatoriasBox');
+  await Hive.openBox('offlineActionsBox');
+
   await NotificationSocketService.instance.initializeLocalNotifications();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

@@ -41,7 +41,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             title: 'Mensajes y Chat',
             subtitle: 'Conéctate y conversa directamente con tus clientes y freelancers.',
           ),
-          const ProfileScreen(showBottomNav: false),
+          const ProfileScreen(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
