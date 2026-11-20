@@ -58,7 +58,7 @@ class ApiConstants {
   static String projectById(String id) => '/projects/$id';
 
   // Postulaciones (src/presentation/routes/proposal.routes.ts)
-  static const String proposals = '/proposals';
+  // static const String proposals = '/proposals';
 
   // Contratos, Hitos y Entregas (src/presentation/routes/contract.routes.ts)
   static const String contracts = '/contracts';
