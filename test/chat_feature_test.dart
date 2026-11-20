@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:freelance_hub_movil/models/chat_conversation.dart';
 import 'package:freelance_hub_movil/models/chat_message.dart';
 import 'package:freelance_hub_movil/screens/chat/chat_screen.dart';
 import 'package:freelance_hub_movil/services/chat_message_queue.dart';
@@ -562,6 +563,28 @@ void main() {
       expect(fromDb.replyToSenderName, equals('Carlos'));
       expect(fromDb.replyToContent, equals('Mensaje anterior'));
       expect(fromDb.content, equals('¡Sí, seguro!'));
+    });
+
+    test('ChatConversation sanitiza [reply:...] y no muestra JSON en vista previa de último mensaje', () {
+      final conv = ChatConversation(
+        id: 'conv_123',
+        peerId: 'peer_1',
+        peerName: 'Christopher Isaac Rivera',
+        peerRole: 'Freelancer',
+        lastMessage: '[reply:{"id":"d38db8cb-a2ef","sender":"Carlos","text":"¿Qué tal?"}]\nHola, todo bien!',
+        lastMessageTime: DateTime.now(),
+        lastMessageIsMine: true,
+      );
+
+      // No debe contener el JSON ni la etiqueta [reply:...]
+      expect(conv.lastMessage, isNot(contains('[reply:')));
+      expect(conv.lastMessage, isNot(contains('d38db8cb')));
+      expect(conv.lastMessage, equals('Hola, todo bien!'));
+      expect(conv.displayLastMessage, equals('Hola, todo bien!'));
+
+      // Comprobar stickers y GIFs en vista previa
+      expect(ChatConversation.cleanPreview('[reply:{"id":"1"}]\n[sticker:deal_done]'), equals('🏷️ Sticker'));
+      expect(ChatConversation.cleanPreview('[reply:{"id":"2"}]\n[gif:https://tenor.com/view]'), equals('🎬 GIF'));
     });
   });
 }

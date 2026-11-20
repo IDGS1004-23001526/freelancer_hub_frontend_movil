@@ -14,20 +14,43 @@ class ChatConversation {
   final bool lastMessageIsMine;
   final MessageStatus lastMessageStatus;
 
-  const ChatConversation({
+  ChatConversation({
     required this.id,
     required this.peerId,
     required this.peerName,
     required this.peerRole,
     this.peerAvatarUrl,
     this.projectName,
-    required this.lastMessage,
+    required String lastMessage,
     required this.lastMessageTime,
     this.unreadCount = 0,
     this.isOnline = false,
     this.lastMessageIsMine = false,
     this.lastMessageStatus = MessageStatus.sent,
-  });
+  }) : lastMessage = cleanPreview(lastMessage);
+
+  /// Limpia encabezados técnicos como [reply:{"id":...}] para que la vista previa sea amigable y legible
+  static String cleanPreview(String raw) {
+    if (raw.isEmpty) return raw;
+    String text = raw.trim();
+    while (text.startsWith('[reply:')) {
+      final closeIdx = text.indexOf(']');
+      if (closeIdx != -1) {
+        text = text.substring(closeIdx + 1).trim();
+      } else {
+        break;
+      }
+    }
+    if (text.startsWith('[sticker:') && text.endsWith(']')) {
+      return '🏷️ Sticker';
+    }
+    if (text.startsWith('[gif:') && text.endsWith(']')) {
+      return '🎬 GIF';
+    }
+    return text;
+  }
+
+  String get displayLastMessage => cleanPreview(lastMessage);
 
   String get formattedTime {
     final now = DateTime.now();

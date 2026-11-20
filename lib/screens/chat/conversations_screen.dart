@@ -80,7 +80,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       final matchesQuery = query.isEmpty ||
           conv.peerName.toLowerCase().contains(query) ||
           (conv.projectName?.toLowerCase().contains(query) ?? false) ||
-          conv.lastMessage.toLowerCase().contains(query);
+          conv.displayLastMessage.toLowerCase().contains(query);
 
       if (!matchesQuery) return false;
 
@@ -477,11 +477,11 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                         child: Text(
                           conv.lastMessageIsMine &&
                                   !hasUnread &&
-                                  conv.lastMessage.isNotEmpty &&
-                                  !conv.lastMessage.startsWith('Tú:') &&
-                                  conv.lastMessage != 'Conversación iniciada'
-                              ? 'Tú: ${conv.lastMessage}'
-                              : conv.lastMessage,
+                                  conv.displayLastMessage.isNotEmpty &&
+                                  !conv.displayLastMessage.startsWith('Tú:') &&
+                                  conv.displayLastMessage != 'Conversación iniciada'
+                              ? 'Tú: ${conv.displayLastMessage}'
+                              : conv.displayLastMessage,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(

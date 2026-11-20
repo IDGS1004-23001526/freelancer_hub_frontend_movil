@@ -29,7 +29,7 @@ class ChatMessage {
     required this.senderId,
     required this.receiverId,
     required this.senderName,
-    required this.content,
+    required String content,
     required this.timestamp,
     this.status = MessageStatus.sent,
     required this.isMine,
@@ -37,7 +37,22 @@ class ChatMessage {
     this.replyToMessageId,
     this.replyToSenderName,
     this.replyToContent,
-  });
+  }) : content = cleanContent(content);
+
+  /// Remueve cualquier prefijo técnico [reply:...] del texto legible del mensaje
+  static String cleanContent(String raw) {
+    if (raw.isEmpty) return raw;
+    String text = raw;
+    while (text.startsWith('[reply:')) {
+      final closeIdx = text.indexOf(']');
+      if (closeIdx != -1) {
+        text = text.substring(closeIdx + 1).trimLeft();
+      } else {
+        break;
+      }
+    }
+    return text;
+  }
 
   /// Determina si el mensaje contiene una respuesta/cita citada
   bool get hasReply =>
@@ -47,9 +62,9 @@ class ChatMessage {
   String get quoteSnippet {
     if (isSticker) return '🏷️ Sticker';
     if (isGif) return '🎬 GIF';
-    final trimmed = content.trim();
-    if (trimmed.isEmpty) return 'Archivo adjunto';
-    return trimmed;
+    final clean = cleanContent(content).trim();
+    if (clean.isEmpty) return 'Archivo adjunto';
+    return clean;
   }
 
   /// Empaqueta el prefijo de metadatos de respuesta dentro del campo content para persistencia agnóstica de base de datos
@@ -65,18 +80,18 @@ class ChatMessage {
     final meta = jsonEncode({
       'id': replyToMessageId ?? '',
       'sender': replyToSenderName ?? '',
-      'text': replyToContent.trim(),
+      'text': cleanContent(replyToContent).trim(),
     });
-    return '[reply:$meta]\n$content';
+    return '[reply:$meta]\n${cleanContent(content)}';
   }
 
   /// Texto formateado del mensaje citado
   String get replySnippet {
     if (replyToContent == null) return '';
-    final c = replyToContent!.trim();
-    if (c.startsWith('[sticker:') && c.endsWith(']')) return '🏷️ Sticker';
-    if (c.startsWith('[gif:') && c.endsWith(']')) return '🎬 GIF';
-    return c;
+    final clean = cleanContent(replyToContent!).trim();
+    if (clean.startsWith('[sticker:') && clean.endsWith(']')) return '🏷️ Sticker';
+    if (clean.startsWith('[gif:') && clean.endsWith(']')) return '🎬 GIF';
+    return clean;
   }
 
   /// Determina si el mensaje corresponde a un Sticker
@@ -176,8 +191,8 @@ class ChatMessage {
         json['replyContent'] ??
         json['replySnippet'];
 
-    // Decodificar metadatos de respuesta embebidos en el contenido si existen
-    if (resolvedContent.startsWith('[reply:')) {
+    // Decodificar metadatos de respuesta embebidos en el contenido si existen y limpiar resolvedContent
+    while (resolvedContent.startsWith('[reply:')) {
       final closeIdx = resolvedContent.indexOf(']');
       if (closeIdx != -1) {
         final metaRaw = resolvedContent.substring(7, closeIdx);
@@ -187,12 +202,11 @@ class ChatMessage {
             replyId ??= decoded['id']?.toString();
             replySender ??= decoded['sender']?.toString();
             replyText ??= decoded['text']?.toString();
-            resolvedContent = resolvedContent.substring(closeIdx + 1);
-            if (resolvedContent.startsWith('\n')) {
-              resolvedContent = resolvedContent.substring(1);
-            }
           }
         } catch (_) {}
+        resolvedContent = resolvedContent.substring(closeIdx + 1).trimLeft();
+      } else {
+        break;
       }
     }
 
