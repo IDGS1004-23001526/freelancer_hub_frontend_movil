@@ -10,13 +10,19 @@ import '../../theme/app_colors.dart';
 import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
-import '../chat/conversations_screen.dart';
-import '../home/explorar_screen.dart';
+import '../main_navigation_screen.dart';
 import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool showBottomNav;
+  final UserProfile? initialUser;
+
+  const ProfileScreen({
+    super.key,
+    this.showBottomNav = false,
+    this.initialUser,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -26,41 +32,133 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileService _profileService = ProfileService();
   final AuthService _authService = AuthService();
 
-  int _currentNavIndex = 3;
+  int _standaloneNavIndex = 4;
   bool _isLoading = true;
 
   UserProfile _user = UserProfile(
     id: '',
-    fullName: 'Laura Mendoza',
-    email: 'laura@freelancerhub.com',
+    fullName: '',
+    email: '',
     role: 'FREELANCER',
-    location: 'Ciudad de México, MX',
-    bio: 'Especialista en interfaces de usuario y desarrollo de proyectos móviles.',
-    phone: '+52 55 1234 5678',
-    skills: ['Flutter', 'UI/UX', 'Dart', 'Figma'],
+    location: '',
+    bio: '',
+    phone: '',
+    skills: const [],
   );
+
+  int get _completionPercentage {
+    int total = 4;
+    int filled = 0;
+    if (_user.fullName.trim().isNotEmpty) filled++;
+    if (_user.location.trim().isNotEmpty) filled++;
+    if (_user.bio.trim().isNotEmpty) filled++;
+    if (_user.skills.isNotEmpty) filled++;
+    return ((filled / total) * 100).round();
+  }
+
+  bool get _isProfileIncomplete => _completionPercentage < 100;
+
+  Widget _buildIncompleteProfileBanner() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.info_outline, color: Color(0xFFD97706), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Tu perfil está al $_completionPercentage% completado',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF92400E),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: _completionPercentage / 100.0,
+              backgroundColor: const Color(0xFFFEF3C7),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD97706)),
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Agrega tu ubicación, biografía y habilidades para generar confianza y recibir propuestas.',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: const Color(0xFF78350F),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 38,
+            child: ElevatedButton.icon(
+              onPressed: _navigateToEditProfile,
+              icon: const Icon(Icons.check_circle_outline, size: 16, color: Colors.white),
+              label: Text(
+                'Completar perfil ahora',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFD97706),
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
-    final blocUser = context.read<AuthBloc?>()?.state.user;
-    if (blocUser != null) {
-      _user = blocUser;
+    if (widget.initialUser != null) {
+      _user = widget.initialUser!;
       _isLoading = false;
-    } else {
-      _loadProfileData();
     }
+    _loadProfileData();
   }
 
   Future<void> _loadProfileData() async {
+    final cached = await _authService.getCachedUserProfile();
+    if (cached != null && mounted) {
+      setState(() {
+        _user = cached;
+        _isLoading = false;
+      });
+    }
+
     final fetched = await _profileService.fetchProfile();
     if (fetched != null && mounted) {
       setState(() {
         _user = fetched;
         _isLoading = false;
       });
-    } else {
-      if (mounted) setState(() => _isLoading = false);
+    } else if (cached == null && mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -115,6 +213,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+              if (_isProfileIncomplete) _buildIncompleteProfileBanner(),
               // Tarjeta Cabecera de Perfil
               Container(
                 width: double.infinity,
@@ -217,18 +316,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                    if (_user.bio.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        _user.bio,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: AppColors.textPrimary,
-                          fontStyle: FontStyle.italic,
-                        ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _user.bio.isNotEmpty
+                          ? _user.bio
+                          : 'Sin biografía añadida todavía.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: _user.bio.isNotEmpty
+                            ? AppColors.textPrimary
+                            : AppColors.textSecondary,
+                        fontStyle: FontStyle.italic,
                       ),
-                    ],
+                    ),
                     if (_user.skills.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Wrap(
@@ -247,6 +348,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textPrimary),
                           ),
                         )).toList(),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 10),
+                      InkWell(
+                        onTap: _navigateToEditProfile,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryLight.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.add, size: 14, color: AppColors.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Añadir habilidades profesionales',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 16),
@@ -364,36 +494,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentNavIndex,
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ExplorarScreen()),
-            );
-            return;
-          }
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ConversationsScreen()),
-            );
-            return;
-          }
-          setState(() => _currentNavIndex = index);
-        },
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        backgroundColor: AppColors.surface,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), label: 'Explorar'),
-          BottomNavigationBarItem(icon: Icon(Icons.work_outline), label: 'Postulaciones'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
-        ],
-      ),
+      bottomNavigationBar: widget.showBottomNav
+          ? BottomNavigationBar(
+              currentIndex: _standaloneNavIndex,
+              onTap: (index) {
+                if (index != _standaloneNavIndex) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MainNavigationScreen(initialIndex: index),
+                    ),
+                  );
+                }
+              },
+              selectedItemColor: AppColors.primary,
+              unselectedItemColor: AppColors.textSecondary,
+              backgroundColor: AppColors.surface,
+              type: BottomNavigationBarType.fixed,
+              selectedLabelStyle: GoogleFonts.poppins(fontSize: 10.5, fontWeight: FontWeight.w600),
+              unselectedLabelStyle: GoogleFonts.poppins(fontSize: 10.5),
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.explore_outlined),
+                  activeIcon: Icon(Icons.explore),
+                  label: 'Explorar',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.description_outlined),
+                  activeIcon: Icon(Icons.description),
+                  label: 'Contratos',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.account_balance_wallet_outlined),
+                  activeIcon: Icon(Icons.account_balance_wallet),
+                  label: 'Billetera',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.chat_bubble_outline),
+                  activeIcon: Icon(Icons.chat_bubble),
+                  label: 'Chat',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person_outline),
+                  activeIcon: Icon(Icons.person),
+                  label: 'Perfil',
+                ),
+              ],
+            )
+          : null,
     );
   }
 }

@@ -3,8 +3,6 @@ import '../../models/convocatoria.dart';
 import '../../services/project_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/advanced_filters_modal.dart';
-import '../chat/conversations_screen.dart';
-import '../profile/profile_screen.dart';
 
 class ExplorarScreen extends StatefulWidget {
   const ExplorarScreen({super.key});
@@ -15,7 +13,6 @@ class ExplorarScreen extends StatefulWidget {
 
 class _ExplorarScreenState extends State<ExplorarScreen> {
   final ProjectService _projectService = ProjectService();
-  int _currentIndex = 0;
   String _searchQuery = '';
   bool _isLoading = false;
 
@@ -206,13 +203,24 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
                       ),
                     ],
                   ),
-                  CircleAvatar(
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                    child: const Text(
-                      'L',
-                      style: TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.12),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
@@ -404,38 +412,6 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ConversationsScreen()),
-            );
-            return;
-          }
-          if (index == 3) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
-            );
-            return;
-          }
-          setState(() => _currentIndex = index);
-        },
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Explorar'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.work_outline), label: 'Postulaciones'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline), label: 'Perfil'),
-        ],
       ),
     );
   }
