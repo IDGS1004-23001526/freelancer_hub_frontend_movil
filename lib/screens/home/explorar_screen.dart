@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/advanced_filters_modal.dart';
 import '../chat/conversations_screen.dart';
 import '../profile/profile_screen.dart';
+import '../contracts/contracts_screen.dart';
 
 class ExplorarScreen extends StatefulWidget {
   const ExplorarScreen({super.key});
@@ -350,10 +351,12 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
                 children: [
                   Icon(Icons.bolt, size: 16, color: AppColors.primary),
                   SizedBox(width: 4),
-                  Text(
-                    'Toca una habilidad y descubre coincidencias al instante.',
-                    style:
-                        TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  Expanded(
+                    child: Text(
+                      'Toca una habilidad y descubre coincidencias al instante.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -408,6 +411,13 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ContractsScreen()),
+            );
+            return;
+          }
           if (index == 2) {
             Navigator.push(
               context,
@@ -422,7 +432,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
             );
             return;
           }
-          setState(() => _currentIndex = index);
+          setState(() => _currentIndex = 0);
         },
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textSecondary,
@@ -430,7 +440,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.explore), label: 'Explorar'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.work_outline), label: 'Postulaciones'),
+              icon: Icon(Icons.work_outline), label: 'Postular'),
           BottomNavigationBarItem(
               icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
           BottomNavigationBarItem(

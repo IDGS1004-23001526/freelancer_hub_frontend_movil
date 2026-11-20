@@ -24,33 +24,20 @@ class MilestoneService {
   /// Lista los contratos activos del usuario autenticado (GET /api/v1/contracts)
   /// Lista los contratos/postulaciones activas del usuario autenticado (GET /api/v1/contracts)
   Future<List<JsonMap>> getMyContracts() async {
-    final token = await AuthService().getToken();
-    final options = Options(
-      sendTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 5),
-      headers: {
-        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-      },
-    );
-
-    for (final base in AuthService.getOrderedBaseUrls()) {
+    for (final baseUrl in AuthService.getOrderedBaseUrls()) {
       try {
-        final response = await _dio.get(
-          '$base${ApiConstants.contracts}',
-          options: options,
-        );
-        if (response.statusCode == 200) {
-          AuthService.activeBaseUrl = base;
-          final rawList = response.data is Map && response.data['data'] != null
-              ? response.data['data'] as List
-              : response.data as List;
-          return rawList.map((e) => JsonMap.from(e)).toList();
-        }
-      } catch (e) {
-        debugPrint('MilestoneService.getMyContracts fallo en $base: $e');
+        final response = await _dio.get('$baseUrl${ApiConstants.contracts}');
+        final rawList = response.data is Map && response.data['data'] != null
+            ? response.data['data'] as List
+            : response.data as List;
+        return rawList.map((e) => JsonMap.from(e)).toList();
+      } on DioException catch (e) {
+        debugPrint('MilestoneService.getMyContracts fallo en $baseUrl: $e');
+        // Si el servidor respondió con un error HTTP (401, 404, 500), no probar IPs locales
+        if (e.response != null) rethrow;
       }
     }
-    return [];
+    throw Exception('No se pudo conectar con ningún servidor disponible.');
   }
 
   /// Obtiene el detalle de un hito desde los contratos del usuario para ApproveMilestoneScreen

@@ -15,6 +15,7 @@ import '../contracts/contracts_screen.dart';
 import '../home/explorar_screen.dart';
 import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
+import '../wallet/wallet_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -337,6 +338,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle: 'Nombre, correo, teléfono y biografía',
                       onTap: _navigateToEditProfile,
                     ),
+                    ProfileMenuItem(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: 'Billetera Digital y Retiros (HU-14)',
+                      subtitle: 'Saldo disponible, custodia Escrow y retiros CLABE',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const WalletScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
                     const Divider(height: 1),
                     ProfileMenuItem(
                       icon: Icons.credit_card,
