@@ -142,8 +142,8 @@ void main() {
       await tester.pumpWidget(
         BlocProvider<AuthBloc>.value(
           value: authBloc,
-          child: const MaterialApp(
-            home: ProfileScreen(),
+          child: MaterialApp(
+            home: ProfileScreen(initialUser: incompleteUser),
           ),
         ),
       );
