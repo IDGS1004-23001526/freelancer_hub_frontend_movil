@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../services/auth_service.dart';
 import 'auth_event.dart';
@@ -107,6 +108,27 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     final token = await _authService.getToken();
     final cachedUser = await _authService.getCachedUserProfile();
     if (token != null && token.isNotEmpty) {
+      // Si el token expiró, intentar renovarlo silenciosamente con el refresh token
+      if (_isTokenExpired(token)) {
+        final refreshedToken = await _authService.refreshToken();
+        if (refreshedToken != null && refreshedToken.isNotEmpty) {
+          final refreshedUser = await _authService.getCachedUserProfile();
+          emit(
+            state.copyWith(
+              status: AuthStatus.authenticated,
+              user: refreshedUser ?? cachedUser,
+              clearError: true,
+            ),
+          );
+          return;
+        } else {
+          // Si el refresh token falló o expiró, limpiar sesión local
+          await _authService.logout();
+          emit(state.copyWith(status: AuthStatus.unauthenticated));
+          return;
+        }
+      }
+
       emit(
         state.copyWith(
           status: AuthStatus.authenticated,
@@ -117,6 +139,21 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } else {
       emit(state.copyWith(status: AuthStatus.unauthenticated));
     }
+  }
+
+  bool _isTokenExpired(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+      if (payload is Map<String, dynamic> && payload['exp'] != null) {
+        final exp = (payload['exp'] as num).toInt();
+        final nowInSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        return nowInSeconds >= exp;
+      }
+    } catch (_) {}
+    return false;
   }
 
   Future<void> _onLogoutRequested(

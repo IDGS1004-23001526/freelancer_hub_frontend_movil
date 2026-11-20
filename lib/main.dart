@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'bloc/auth/auth_bloc.dart';
+import 'bloc/auth/auth_event.dart';
 import 'bloc/auth/auth_state.dart';
 import 'screens/auth/onboarding_screen.dart';
+import 'screens/main_navigation_screen.dart';
 import 'services/notification_socket_service.dart';
+import 'theme/app_colors.dart';
 import 'widgets/message_notification_overlay.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
@@ -34,7 +37,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<AuthBloc>(
-      create: (_) => AuthBloc(),
+      create: (_) => AuthBloc()..add(const AuthSessionChecked()),
       child: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state.status == AuthStatus.authenticated) {
@@ -56,9 +59,29 @@ class MyApp extends StatelessWidget {
               child: child ?? const SizedBox.shrink(),
             );
           },
-          home: const OnboardingScreen(),
+          home: const AuthGate(),
         ),
       ),
+    );
+  }
+}
+
+/// Compuerta de autenticación inicial:
+/// - Si hay token y sesión activa -> navega directo a [MainNavigationScreen]
+/// - Si no hay sesión -> muestra [OnboardingScreen]
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AuthBloc, AuthState>(
+      buildWhen: (previous, current) => previous.status != current.status,
+      builder: (context, state) {
+        if (state.status == AuthStatus.authenticated) {
+          return const MainNavigationScreen();
+        }
+        return const OnboardingScreen();
+      },
     );
   }
 }

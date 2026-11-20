@@ -25,7 +25,14 @@ class ConvocatoriaService {
   factory ConvocatoriaService() => _instance;
   ConvocatoriaService._internal();
 
-  final Box _box = Hive.box('convocatoriasBox');
+  Box? get _box {
+    try {
+      if (Hive.isBoxOpen('convocatoriasBox')) {
+        return Hive.box('convocatoriasBox');
+      }
+    } catch (_) {}
+    return null;
+  }
   final ConnectivityService _connectivity = ConnectivityService();
   final OfflineQueueService _queue = OfflineQueueService();
 
@@ -89,10 +96,12 @@ class ConvocatoriaService {
   ];
 
   Future<void> initCacheIfNeeded() async {
-    final cached = _box.get(_cacheKey);
+    final box = _box;
+    if (box == null) return;
+    final cached = box.get(_cacheKey);
     if (cached == null) {
       final initialData = _defaultConvocatorias.map((c) => c.toMap()).toList();
-      await _box.put(_cacheKey, initialData);
+      await box.put(_cacheKey, initialData);
     }
   }
 
@@ -152,7 +161,9 @@ class ConvocatoriaService {
   }
 
   List<Convocatoria> _getCachedList() {
-    final raw = _box.get(_cacheKey);
+    final box = _box;
+    if (box == null) return _defaultConvocatorias;
+    final raw = box.get(_cacheKey);
     if (raw is List && raw.isNotEmpty) {
       return raw.map((item) {
         if (item is Map) {
@@ -165,8 +176,10 @@ class ConvocatoriaService {
   }
 
   Future<void> _saveToCache(List<Convocatoria> list) async {
+    final box = _box;
+    if (box == null) return;
     final mapped = list.map((c) => c.toMap()).toList();
-    await _box.put(_cacheKey, mapped);
+    await box.put(_cacheKey, mapped);
   }
 
   Future<bool> postularAConvocatoria({

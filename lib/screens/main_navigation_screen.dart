@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import 'chat/conversations_screen.dart';
 import 'contracts/contracts_screen.dart';
 import 'convocatorias/explorar_screen.dart';
 import 'profile/profile_screen.dart';
@@ -36,11 +37,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           const ExplorarScreen(),
           const ContractsScreen(),
           const WalletScreen(),
-          _buildPlaceholder(
-            icon: Icons.chat_bubble_outline,
-            title: 'Mensajes y Chat',
-            subtitle: 'Conéctate y conversa directamente con tus clientes y freelancers.',
-          ),
+          const ConversationsScreen(),
           const ProfileScreen(),
         ],
       ),

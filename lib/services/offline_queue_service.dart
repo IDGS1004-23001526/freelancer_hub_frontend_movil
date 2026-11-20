@@ -11,7 +11,14 @@ class OfflineQueueService {
   factory OfflineQueueService() => _instance;
   OfflineQueueService._internal();
 
-  final Box _actionsBox = Hive.box('offlineActionsBox');
+  Box? get _actionsBox {
+    try {
+      if (Hive.isBoxOpen('offlineActionsBox')) {
+        return Hive.box('offlineActionsBox');
+      }
+    } catch (_) {}
+    return null;
+  }
   final StreamController<int> _pendingCountController =
       StreamController<int>.broadcast();
   final StreamController<String> _syncNotificationController =
@@ -43,9 +50,11 @@ class OfflineQueueService {
   }
 
   List<OfflineAction> getPendingActions() {
+    final box = _actionsBox;
+    if (box == null) return [];
     final list = <OfflineAction>[];
-    for (var key in _actionsBox.keys) {
-      final value = _actionsBox.get(key);
+    for (var key in box.keys) {
+      final value = box.get(key);
       if (value != null) {
         try {
           if (value is Map) {
@@ -65,19 +74,25 @@ class OfflineQueueService {
   }
 
   Future<void> enqueueAction(OfflineAction action) async {
-    await _actionsBox.put(action.id, action.toMap());
+    final box = _actionsBox;
+    if (box == null) return;
+    await box.put(action.id, action.toMap());
     _emitPendingCount();
     _syncNotificationController.add(
         'Acción guardada en cola local. Se sincronizará al recuperar conexión.');
   }
 
   Future<void> removeAction(String actionId) async {
-    await _actionsBox.delete(actionId);
+    final box = _actionsBox;
+    if (box == null) return;
+    await box.delete(actionId);
     _emitPendingCount();
   }
 
   Future<void> clearAll() async {
-    await _actionsBox.clear();
+    final box = _actionsBox;
+    if (box == null) return;
+    await box.clear();
     _emitPendingCount();
   }
 
@@ -127,7 +142,7 @@ class OfflineQueueService {
 
       if (success) {
         // Eliminar de la cola de pendientes
-        await _actionsBox.delete(action.id);
+        await _actionsBox?.delete(action.id);
         syncedCount++;
       }
     }

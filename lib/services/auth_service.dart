@@ -41,11 +41,19 @@ class AuthService {
   }
 
   Future<String?> getToken() async {
-    return await _storage.read(key: 'jwt_token');
+    try {
+      return await _storage.read(key: 'jwt_token');
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<String?> getRefreshToken() async {
-    return await _storage.read(key: 'refresh_token');
+    try {
+      return await _storage.read(key: 'refresh_token');
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Renueva el token de acceso invocando el flujo de refresh token
@@ -87,9 +95,9 @@ class AuthService {
   }
 
   Future<UserProfile?> getCachedUserProfile() async {
-    final raw = await _storage.read(key: 'user_profile');
-    if (raw == null || raw.isEmpty) return null;
     try {
+      final raw = await _storage.read(key: 'user_profile');
+      if (raw == null || raw.isEmpty) return null;
       return UserProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (_) {
       return null;

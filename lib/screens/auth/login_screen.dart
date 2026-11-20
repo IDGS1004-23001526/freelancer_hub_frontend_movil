@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../utils/form_validators.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
+import '../main_navigation_screen.dart';
 import '../profile/profile_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -63,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (state.status == AuthStatus.authenticated) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
             (route) => false,
           );
         } else if (state.status == AuthStatus.error &&
