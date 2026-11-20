@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/chat_conversation.dart';
+import '../../models/chat_message.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/notification_socket_service.dart';
 import '../../theme/app_colors.dart';
@@ -342,6 +343,41 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     );
   }
 
+  Widget? _buildLastMessageStatusIcon(ChatConversation conv) {
+    // Si la conversación tiene mensajes no leídos o el último mensaje no es mío, no mostrar check de envío
+    if (conv.unreadCount > 0 || !conv.lastMessageIsMine || conv.lastMessage == 'Conversación iniciada') {
+      return null;
+    }
+
+    switch (conv.lastMessageStatus) {
+      case MessageStatus.sending:
+        return const Padding(
+          padding: EdgeInsets.only(right: 4),
+          child: Icon(Icons.access_time, size: 12, color: AppColors.textSecondary),
+        );
+      case MessageStatus.sent:
+        return const Padding(
+          padding: EdgeInsets.only(right: 4),
+          child: Icon(Icons.check, size: 14, color: AppColors.textSecondary),
+        );
+      case MessageStatus.delivered:
+        return const Padding(
+          padding: EdgeInsets.only(right: 4),
+          child: Icon(Icons.done_all, size: 14, color: AppColors.textSecondary),
+        );
+      case MessageStatus.read:
+        return const Padding(
+          padding: EdgeInsets.only(right: 4),
+          child: Icon(Icons.done_all, size: 14, color: AppColors.chatReadCheck),
+        );
+      case MessageStatus.failed:
+        return const Padding(
+          padding: EdgeInsets.only(right: 4),
+          child: Icon(Icons.error_outline, size: 14, color: Colors.redAccent),
+        );
+    }
+  }
+
   Widget _buildConversationTile(ChatConversation conv) {
     final hasUnread = conv.unreadCount > 0;
 
@@ -435,16 +471,15 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   // Último mensaje y badge de no leídos
                   Row(
                     children: [
-                      if (conv.lastMessageIsMine)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 4),
-                          child: Icon(Icons.done_all, size: 14, color: AppColors.chatReadCheck),
-                        ),
+                      if (_buildLastMessageStatusIcon(conv) != null)
+                        _buildLastMessageStatusIcon(conv)!,
                       Expanded(
                         child: Text(
                           conv.lastMessageIsMine &&
+                                  !hasUnread &&
                                   conv.lastMessage.isNotEmpty &&
-                                  !conv.lastMessage.startsWith('Tú:')
+                                  !conv.lastMessage.startsWith('Tú:') &&
+                                  conv.lastMessage != 'Conversación iniciada'
                               ? 'Tú: ${conv.lastMessage}'
                               : conv.lastMessage,
                           maxLines: 1,

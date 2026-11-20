@@ -90,6 +90,25 @@ class ChatApiService {
           final listMaps = _extractListOfMaps(response.data);
 
           return listMaps.map((item) {
+            final unread = (item['unreadCount'] as num?)?.toInt() ?? 0;
+            final isMineExplicit = item['lastMessageIsMine'] == true;
+            final isMine = unread > 0 ? false : isMineExplicit;
+
+            MessageStatus parseLastStatus(dynamic raw, dynamic isRead) {
+              if (isRead == true) return MessageStatus.read;
+              final s = raw?.toString().toLowerCase();
+              if (s == 'read' || s == 'visto') return MessageStatus.read;
+              if (s == 'delivered' || s == 'entregado') return MessageStatus.delivered;
+              if (s == 'sending' || s == 'enviando') return MessageStatus.sending;
+              if (s == 'failed' || s == 'fallido') return MessageStatus.failed;
+              return MessageStatus.sent;
+            }
+
+            final lastStatus = parseLastStatus(
+              item['lastMessageStatus'] ?? item['status'],
+              item['lastMessageIsRead'] ?? item['isRead'],
+            );
+
             return ChatConversation(
               id: item['id']?.toString() ?? '',
               peerId: item['peerId']?.toString() ?? '',
@@ -101,9 +120,10 @@ class ChatApiService {
               lastMessageTime: DateTime.tryParse(
                       item['lastMessageTime']?.toString() ?? '') ??
                   DateTime.now(),
-              unreadCount: (item['unreadCount'] as num?)?.toInt() ?? 0,
+              unreadCount: unread,
               isOnline: item['isOnline'] == true,
-              lastMessageIsMine: item['lastMessageIsMine'] == true,
+              lastMessageIsMine: isMine,
+              lastMessageStatus: lastStatus,
             );
           }).toList();
         }
@@ -290,7 +310,8 @@ class ChatApiService {
               lastMessageTime: DateTime.now(),
               unreadCount: 0,
               isOnline: false,
-              lastMessageIsMine: true,
+              lastMessageIsMine: false,
+              lastMessageStatus: MessageStatus.sent,
             );
           }
         }

@@ -1,3 +1,5 @@
+import 'chat_message.dart';
+
 class ChatConversation {
   final String id;
   final String peerId;
@@ -10,6 +12,7 @@ class ChatConversation {
   final int unreadCount;
   final bool isOnline;
   final bool lastMessageIsMine;
+  final MessageStatus lastMessageStatus;
 
   const ChatConversation({
     required this.id,
@@ -23,6 +26,7 @@ class ChatConversation {
     this.unreadCount = 0,
     this.isOnline = false,
     this.lastMessageIsMine = false,
+    this.lastMessageStatus = MessageStatus.sent,
   });
 
   String get formattedTime {
@@ -65,6 +69,7 @@ class ChatConversation {
     int? unreadCount,
     bool? isOnline,
     bool? lastMessageIsMine,
+    MessageStatus? lastMessageStatus,
   }) {
     return ChatConversation(
       id: id ?? this.id,
@@ -78,6 +83,7 @@ class ChatConversation {
       unreadCount: unreadCount ?? this.unreadCount,
       isOnline: isOnline ?? this.isOnline,
       lastMessageIsMine: lastMessageIsMine ?? this.lastMessageIsMine,
+      lastMessageStatus: lastMessageStatus ?? this.lastMessageStatus,
     );
   }
 }
