@@ -121,7 +121,8 @@ class AuthService {
     }
     NotificationSocketService.instance.disconnect();
     try {
-      await ApiClient.instance.dio.delete('/users/fcm-token');
+      final base = activeBaseUrl ?? ApiConstants.baseUrl;
+      await ApiClient.instance.dio.delete('$base/users/fcm-token');
     } catch (_) {}
     try {
       await GoogleSignInService.instance.signOut();

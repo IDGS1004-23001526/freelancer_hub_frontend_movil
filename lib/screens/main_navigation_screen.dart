@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_colors.dart';
+import '../widgets/notification_permission_sheet.dart';
 import 'chat/conversations_screen.dart';
 import 'contracts/contracts_screen.dart';
 import 'convocatorias/explorar_screen.dart';
@@ -26,6 +27,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationPermissionSheet.showIfNeeded(context);
+    });
   }
 
   @override

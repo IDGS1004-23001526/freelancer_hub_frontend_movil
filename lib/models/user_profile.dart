@@ -28,7 +28,47 @@ class UserProfile {
         fullName = (fullName != null && fullName.isNotEmpty)
             ? fullName
             : ('${firstName ?? ''} ${lastName ?? ''}').trim(),
-        phone = phone ?? '';
+        phone = cleanPhone(phone);
+
+  /// Limpia y normaliza el número de teléfono eliminando envolturas JSON o Maps de Dart
+  /// como `{value.4771882324}`, `{"value":"4771882324"}` o `{value: 4771882324}`.
+  static String cleanPhone(dynamic raw) {
+    if (raw == null) return '';
+    if (raw is Map) {
+      final val = raw['value'] ??
+          raw['phone'] ??
+          raw['number'] ??
+          raw['telephone'] ??
+          raw['celular'] ??
+          raw['contact'];
+      if (val != null) return cleanPhone(val);
+      if (raw.values.isNotEmpty) return cleanPhone(raw.values.first);
+      return '';
+    }
+    String s = raw.toString().trim();
+    if (s.isEmpty) return '';
+
+    // Si viene como string JSON o representación de objeto: "{value.4771882324}" o "{value: 4771882324}"
+    if (s.startsWith('{') || s.toLowerCase().contains('value')) {
+      final match = RegExp(
+        r'(?:value[.:\s]+|"value"\s*:\s*"??)([\+0-9\s\-()]+)',
+        caseSensitive: false,
+      ).firstMatch(s);
+      if (match != null) {
+        final extracted =
+            match.group(1)?.replaceAll(RegExp(r'["\}\]]'), '').trim() ?? '';
+        if (extracted.isNotEmpty) return extracted;
+      }
+      final digitsMatch = RegExp(r'([\+0-9\s\-()]{7,20})').firstMatch(s);
+      if (digitsMatch != null) {
+        final extracted = digitsMatch.group(1)?.trim() ?? '';
+        if (extracted.isNotEmpty) return extracted;
+      }
+    }
+    return s;
+  }
+
+  String get displayPhone => cleanPhone(phone);
 
   static String _extractFirstName(String full) {
     final trimmed = full.trim();
@@ -70,7 +110,7 @@ class UserProfile {
       role: json['role']?.toString() ?? '',
       location: json['location']?.toString() ?? '',
       bio: json['bio']?.toString() ?? '',
-      phone: json['phone']?.toString() ?? json['telephone']?.toString() ?? '',
+      phone: cleanPhone(json['phone'] ?? json['telephone'] ?? json['phone_number'] ?? json['celular']),
       avatarUrl: json['avatarUrl'] ?? json['avatar'] ?? json['avatar_url'],
       skills: json['skills'] != null
           ? (json['skills'] as List)
@@ -94,7 +134,8 @@ class UserProfile {
       'role': role,
       'location': location,
       'bio': bio,
-      'phone': phone,
+      'phone': cleanPhone(phone),
+      'telephone': cleanPhone(phone),
       'avatarUrl': avatarUrl,
       'skills': skills.map((s) => {'name': s}).toList(),
       'skillNames': skills,
@@ -130,7 +171,7 @@ class UserProfile {
       role: role ?? this.role,
       location: location ?? this.location,
       bio: bio ?? this.bio,
-      phone: phone ?? this.phone,
+      phone: phone != null ? cleanPhone(phone) : this.phone,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       skills: skills ?? List.from(this.skills),
     );

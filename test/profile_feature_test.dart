@@ -69,6 +69,25 @@ void main() {
       expect(FormValidators.validatePhone(''), isNull); // opcional si está vacío
       expect(FormValidators.validatePhone('telefono-invalido'), isNotNull);
       expect(FormValidators.validatePhone('+52 477 123 4567'), isNull);
+      expect(FormValidators.validatePhone('{value.4771882324}'), isNull);
+    });
+
+    test('UserProfile.cleanPhone limpia correctamente cadenas y objetos JSON de teléfono', () {
+      expect(UserProfile.cleanPhone('{value.4771882324}'), equals('4771882324'));
+      expect(UserProfile.cleanPhone('{"value":"4771882324"}'), equals('4771882324'));
+      expect(UserProfile.cleanPhone({'value': '4771882324'}), equals('4771882324'));
+      expect(UserProfile.cleanPhone('{value: 4771882324}'), equals('4771882324'));
+      expect(UserProfile.cleanPhone('4771882324'), equals('4771882324'));
+      expect(UserProfile.cleanPhone('+52 477 123 4567'), equals('+52 477 123 4567'));
+
+      final userFromJson = UserProfile.fromJson({
+        'id': 'u1',
+        'email': 'test@user.com',
+        'phone': '{value.4771882324}',
+      });
+      expect(userFromJson.phone, equals('4771882324'));
+      expect(userFromJson.displayPhone, equals('4771882324'));
+      expect(userFromJson.toJson()['phone'], equals('4771882324'));
     });
 
     testWidgets('Escenario 1: Pre-llenado de datos (correo, rol) y campos según rol FREELANCER', (

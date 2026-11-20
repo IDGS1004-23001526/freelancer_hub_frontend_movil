@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/notification_item.dart';
+import '../../services/firebase_notification_service.dart';
 import '../../services/notification_socket_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/notification_permission_sheet.dart';
 import '../chat/chat_screen.dart';
 
 /// Pantalla dedicada ("Sección de Notificaciones") donde el usuario puede
@@ -21,11 +23,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   StreamSubscription<List<NotificationItem>>? _sub;
   List<NotificationItem> _notifications = [];
   String _activeFilter = 'Todas'; // 'Todas', 'No leídas', 'Mensajes'
+  bool _isPushGranted = true;
 
   @override
   void initState() {
     super.initState();
     _notifications = _notificationService.notifications;
+    _checkPushPermission();
     _sub = _notificationService.onNotificationsChanged.listen((list) {
       if (mounted) {
         setState(() {
@@ -33,6 +37,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         });
       }
     });
+  }
+
+  Future<void> _checkPushPermission() async {
+    final granted =
+        await FirebaseNotificationService.instance.isPermissionGranted();
+    if (mounted) {
+      setState(() => _isPushGranted = granted);
+    }
   }
 
   @override
@@ -219,6 +231,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
           const Divider(height: 1, color: AppColors.border),
+
+          if (!_isPushGranted)
+            NotificationPermissionSheet(
+              isInlineCard: true,
+              onGranted: () => setState(() => _isPushGranted = true),
+              onDismissed: () => setState(() => _isPushGranted = true),
+            ),
 
           // Lista de notificaciones
           Expanded(

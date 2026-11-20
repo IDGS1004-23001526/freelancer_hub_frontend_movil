@@ -291,7 +291,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       ),
                     ],
-                    if (_user.phone.isNotEmpty) ...[
+                    if (_user.displayPhone.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -299,7 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const Icon(Icons.phone_outlined, size: 13, color: AppColors.textSecondary),
                           const SizedBox(width: 4),
                           Text(
-                            _user.phone,
+                            _user.displayPhone,
                             style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textSecondary),
                           ),
                         ],

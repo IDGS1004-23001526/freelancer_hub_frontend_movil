@@ -4,10 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/convocatoria.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/convocatoria_service.dart';
+import '../../services/firebase_notification_service.dart';
 import '../../services/notification_socket_service.dart';
 import '../../services/offline_queue_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/convocatoria_card.dart';
+import '../../widgets/notification_permission_sheet.dart';
 import '../../widgets/offline_badge.dart';
 import '../notifications/notifications_screen.dart';
 
@@ -27,6 +29,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
   List<Convocatoria> _filteredConvocatorias = [];
   bool _isLoading = true;
   bool _isOffline = false;
+  bool _hasNotificationPermission = true;
   String _selectedSkill = 'Todos';
   final TextEditingController _searchController = TextEditingController();
 
@@ -47,6 +50,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
   void initState() {
     super.initState();
     _loadConvocatorias();
+    _checkNotificationPermission();
 
     // Escuchar cambios de conectividad
     _connectivitySub = _connectivity.onConnectivityChanged.listen((isOnline) {
@@ -97,6 +101,14 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
         _isLoading = false;
       });
       _applyFilters();
+    }
+  }
+
+  Future<void> _checkNotificationPermission() async {
+    final granted =
+        await FirebaseNotificationService.instance.isPermissionGranted();
+    if (mounted) {
+      setState(() => _hasNotificationPermission = granted);
     }
   }
 
@@ -368,6 +380,17 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
               isOffline: _isOffline,
               onRetry: () => _loadConvocatorias(),
             ),
+
+            // Card interactiva de permisos de notificaciones push
+            if (!_hasNotificationPermission &&
+                !NotificationPermissionSheet.hasDismissedThisSession)
+              NotificationPermissionSheet(
+                isInlineCard: true,
+                onGranted: () =>
+                    setState(() => _hasNotificationPermission = true),
+                onDismissed: () =>
+                    setState(() => _hasNotificationPermission = true),
+              ),
 
             // Barra de Búsqueda
             Padding(

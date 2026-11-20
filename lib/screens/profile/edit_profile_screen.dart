@@ -74,7 +74,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.initState();
     _firstNameController = TextEditingController(text: widget.user.firstName);
     _lastNameController = TextEditingController(text: widget.user.lastName);
-    _phoneController = TextEditingController(text: widget.user.phone);
+    _phoneController = TextEditingController(text: widget.user.displayPhone);
     _roleController = TextEditingController(text: widget.user.role);
     _locationController = TextEditingController(text: widget.user.location);
     _bioController = TextEditingController(text: widget.user.bio);
@@ -235,7 +235,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       firstName: firstName,
       lastName: lastName,
       fullName: fullName,
-      phone: _phoneController.text.trim(),
+      phone: UserProfile.cleanPhone(_phoneController.text.trim()),
       role: _roleController.text.trim().isNotEmpty ? _roleController.text.trim() : widget.user.role,
       location: _locationController.text.trim(),
       bio: _bioController.text.trim(),

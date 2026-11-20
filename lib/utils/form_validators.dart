@@ -1,3 +1,5 @@
+import '../models/user_profile.dart';
+
 /// Validadores reutilizables para los campos [TextFormField] del flujo de autenticación y perfil.
 /// Alineados con las reglas de dominio del backend (FreelancerHub API).
 class FormValidators {
@@ -43,7 +45,7 @@ class FormValidators {
     if (value == null || value.trim().isEmpty) {
       return null; // El teléfono puede ser opcional al inicio
     }
-    final trimmed = value.trim();
+    final trimmed = UserProfile.cleanPhone(value);
     if (!_phoneRegex.hasMatch(trimmed)) {
       return 'Ingresa un número telefónico válido (ej. +52 477 123 4567)';
     }

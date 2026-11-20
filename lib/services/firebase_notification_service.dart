@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../config/api_constants.dart';
 import '../firebase_options.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
@@ -111,6 +112,48 @@ class FirebaseNotificationService {
     }
   }
 
+  /// Verifica si el usuario ya otorgó permisos de notificación push
+  Future<bool> isPermissionGranted() async {
+    if (kIsWeb) return false;
+    try {
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Solicita de manera explícita los permisos al sistema operativo (Android 13+ / iOS).
+  /// Si son concedidos, obtiene el token FCM y lo sincroniza de inmediato con el backend.
+  Future<bool> requestNotificationPermission() async {
+    if (kIsWeb) return false;
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+
+      final granted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+
+      if (granted) {
+        _fcmToken = await messaging.getToken();
+        debugPrint('[FirebaseNotificationService] Permiso concedido. FCM Token: $_fcmToken');
+        if (_fcmToken != null && _fcmToken!.isNotEmpty) {
+          await syncFcmTokenWithBackend(_fcmToken);
+        }
+      }
+      return granted;
+    } catch (e) {
+      debugPrint('[FirebaseNotificationService] Error solicitando permisos: $e');
+      return false;
+    }
+  }
+
   /// Sincroniza el token FCM con el backend para que el servidor envíe notificaciones push.
   Future<void> syncFcmTokenWithBackend([String? token]) async {
     final effectiveToken = token ?? _fcmToken;
@@ -120,13 +163,14 @@ class FirebaseNotificationService {
       final jwt = await _authService.getToken();
       if (jwt == null || jwt.isEmpty) return;
 
+      final base = AuthService.activeBaseUrl ?? ApiConstants.baseUrl;
       await ApiClient.instance.dio.post(
-        '/users/fcm-token',
+        '$base/users/fcm-token',
         data: {'fcmToken': effectiveToken},
       );
-      debugPrint('FCM Token sincronizado exitosamente con el backend');
-    } catch (_) {
-      // Falla silenciosa si el endpoint aún no está disponible
+      debugPrint('[FirebaseNotificationService] FCM Token sincronizado exitosamente con el backend');
+    } catch (e) {
+      debugPrint('[FirebaseNotificationService] Error sincronizando FCM Token: $e');
     }
   }
 
