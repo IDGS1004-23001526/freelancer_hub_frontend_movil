@@ -1,9 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:freelance_hub_movil/models/wallet_data.dart';
 import 'package:freelance_hub_movil/services/milestone_service.dart';
 import 'package:freelance_hub_movil/services/wallet_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  FlutterSecureStorage.setMockInitialValues({});
   group('Pruebas de HU-07: Aprobación de Hitos (FLH-MOB-APPROVE)', () {
     test('MilestoneService aprueba hito y retorna estado COMPLETADO', () async {
       final service = MilestoneService();

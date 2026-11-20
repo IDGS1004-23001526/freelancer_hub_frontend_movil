@@ -68,6 +68,12 @@ class ChatMessageQueue {
     _notifyQueueChange();
   }
 
+  /// Limpia la cola y reinicia el worker (útil entre pruebas)
+  void clear() {
+    _queue.clear();
+    _isWorkerRunning = false;
+  }
+
   /// Llamado cuando la red o el socket se reconectan: procesa mensajes pendientes automáticamente
   void onNetworkRestored({ChatSocketService? socketService}) {
     for (final item in _queue) {
@@ -111,20 +117,26 @@ class ChatMessageQueue {
       try {
         ChatMessage? saved;
 
-        // 1. Enviar por REST: el backend ya persiste en BD y emite a la sala WebSocket
-        saved = await _apiService.sendMessage(
-          msg.conversationId,
-          msg.content,
-          currentUserId: msg.senderId,
-          attachmentUrl: msg.attachmentUrl,
-        );
-
-        // 2. Si REST no respondió (ej. entorno de tests/mock o corte parcial), usar socket como fallback
-        if (saved == null &&
-            socketService != null &&
+        // 1. Si el socket está conectado, emitir inmediatamente por WebSocket
+        if (socketService != null &&
             socketService.currentState == SocketConnectionState.connected) {
           socketService.sendMessage(msg);
           saved = msg.copyWith(status: MessageStatus.sent);
+          // Persistir por REST en background sin bloquear la cola
+          _apiService.sendMessage(
+            msg.conversationId,
+            msg.content,
+            currentUserId: msg.senderId,
+            attachmentUrl: msg.attachmentUrl,
+          ).catchError((_) => null);
+        } else {
+          // 2. Si el socket no está disponible, enviar sincrónicamente por REST
+          saved = await _apiService.sendMessage(
+            msg.conversationId,
+            msg.content,
+            currentUserId: msg.senderId,
+            attachmentUrl: msg.attachmentUrl,
+          );
         }
 
         if (saved != null) {

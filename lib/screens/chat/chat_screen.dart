@@ -412,10 +412,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (text.isEmpty) return;
 
     if (_currentUserId == 'my_user_id' || _currentUserId.isEmpty) {
-      final tokenUserId = await _extractUserIdFromToken();
-      if (tokenUserId != null && tokenUserId.isNotEmpty && mounted) {
-        setState(() => _currentUserId = tokenUserId);
-      }
+      _extractUserIdFromToken().then((val) {
+        if (val != null && mounted) setState(() => _currentUserId = val);
+      });
     }
 
     final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:freelance_hub_movil/models/chat_message.dart';
 import 'package:freelance_hub_movil/screens/chat/chat_screen.dart';
+import 'package:freelance_hub_movil/services/chat_message_queue.dart';
 import 'package:freelance_hub_movil/services/chat_socket_service.dart';
 import 'package:freelance_hub_movil/theme/app_colors.dart';
 
@@ -77,6 +78,10 @@ class MockChatSocketService extends ChatSocketService {
 void main() {
   setUpAll(() {
     GoogleFonts.config.allowRuntimeFetching = false;
+  });
+
+  setUp(() {
+    ChatMessageQueue().clear();
   });
 
   group('FLH-MOB-CHAT (HU-11) - Chat en Vivo, Sockets y Notificaciones', () {
@@ -213,7 +218,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Debe mostrar el título del contacto y rol
-      expect(find.text('Carlos Méndez'), findsOneWidget);
+      expect(find.descendant(of: find.byType(AppBar), matching: find.text('Carlos Méndez')), findsOneWidget);
 
       // Verificamos presencia de los mensajes iniciales
       expect(find.text('¡Hola! Revisé tu propuesta para el desarrollo móvil y me parece excelente.'), findsOneWidget);
