@@ -40,9 +40,9 @@ class ApiConstants {
   static const String logout = '$baseUrl/auth/logout';
   static const String me = '$baseUrl/auth/me';
 
-  // Google OAuth Client ID para autenticación federada en móvil
+  // Google OAuth Client ID para autenticación federada en móvil (freelancer-92fe8)
   static const String googleServerClientId =
-      '574293456066-eir8mo5bl9qh1uhmjctudhhel99cmd8i.apps.googleusercontent.com';
+      '417210536628-0r94li2h8u466hl7jrk3fc17jvn35mi7.apps.googleusercontent.com';
 
   // Endpoints de usuario / perfil
   static const String profile = '$baseUrl/users/me/profile';
