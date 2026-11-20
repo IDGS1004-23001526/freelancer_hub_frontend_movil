@@ -70,6 +70,9 @@ class ApiConstants {
   static const String wallet = '/wallet';
   static const String withdrawWallet = '/wallet/withdraw';
 
+  // Endpoints de propuestas (HU-03)
+  static const String proposals = '$baseUrl/proposals';
+
   // Obtiene la URL del servidor WebSocket/Socket.io eliminando el prefijo de API REST
   static String getSocketUrl([String? explicitBaseUrl]) {
     final base = explicitBaseUrl ?? baseUrl;
