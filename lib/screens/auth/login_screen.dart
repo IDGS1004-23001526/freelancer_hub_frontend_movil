@@ -7,6 +7,7 @@ import '../../bloc/auth/auth_state.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/form_validators.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/primary_button.dart';
 import '../main_navigation_screen.dart';
 import '../profile/profile_screen.dart';
@@ -183,6 +184,39 @@ class _LoginScreenState extends State<LoginScreen> {
                       isLoading: state.isLoading,
                       onPressed: () => _submitLogin(context),
                     ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Divider(color: AppColors.border, thickness: 1),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(
+                            'o continúa con',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12.5,
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const Expanded(
+                          child: Divider(color: AppColors.border, thickness: 1),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    GoogleSignInButton(
+                      key: const Key('login_google_button'),
+                      text: 'Continuar con Google',
+                      isLoading: state.isLoading,
+                      onPressed: () {
+                        FocusScope.of(context).unfocus();
+                        context.read<AuthBloc>().add(const AuthGoogleSubmitted());
+                      },
+                    ),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),

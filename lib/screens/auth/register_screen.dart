@@ -10,6 +10,7 @@ import '../../services/profile_service.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/form_validators.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/role_selection_card.dart';
 import '../profile/profile_screen.dart';
@@ -421,6 +422,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
             icon: Icons.arrow_forward,
             isLoading: state.isLoading,
             onPressed: () => _submitStep0(context, state.selectedRole),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              const Expanded(
+                child: Divider(color: AppColors.border, thickness: 1),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Text(
+                  'o regístrate con',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const Expanded(
+                child: Divider(color: AppColors.border, thickness: 1),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          GoogleSignInButton(
+            key: const Key('register_google_button'),
+            text: 'Registrarse con Google',
+            isLoading: state.isLoading,
+            onPressed: () {
+              FocusScope.of(context).unfocus();
+              context
+                  .read<AuthBloc>()
+                  .add(AuthGoogleSubmitted(role: state.selectedRole));
+            },
           ),
           const SizedBox(height: 24),
         ],
