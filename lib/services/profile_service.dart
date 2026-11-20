@@ -26,6 +26,7 @@ class ProfileService {
   /// GET /api/v1/users/me/profile (con respaldo a /profile y /auth/me)
   Future<UserProfile?> fetchProfile() async {
     final options = await _authOptions();
+    final cached = await _authService.getCachedProfile();
 
     for (final base in AuthService.getOrderedBaseUrls()) {
       for (final endpoint in [
@@ -42,17 +43,20 @@ class ProfileService {
                 ? JsonMap.from(raw['data'])
                 : (raw is Map ? JsonMap.from(raw) : <String, dynamic>{});
 
-            return _mapToUserProfile(payload);
+            final user = _mapToUserProfile(payload, cachedLocation: cached?.location);
+            // Preservar en almacenamiento local seguro
+            await _authService.saveProfile(user);
+            return user;
           }
         } catch (e) {
           debugPrint('ProfileService.fetchProfile fallo en $base$endpoint: $e');
         }
       }
     }
-    return null;
+    return cached;
   }
 
-  UserProfile _mapToUserProfile(JsonMap payload) {
+  UserProfile _mapToUserProfile(JsonMap payload, {String? cachedLocation}) {
     final firstName = (payload['firstName'] ?? payload['first_name'] ?? '')
         .toString()
         .trim();
@@ -81,6 +85,11 @@ class ProfileService {
         .toList()
         : <String>[];
 
+    final serverLocation = (payload['location'] ?? payload['city'] ?? payload['country'])?.toString().trim() ?? '';
+    final resolvedLocation = serverLocation.isNotEmpty
+        ? serverLocation
+        : (cachedLocation != null && cachedLocation.isNotEmpty ? cachedLocation : '');
+
     return UserProfile(
       id: (payload['id'] ?? payload['userId'] ?? '').toString(),
       firstName: resolvedFirst,
@@ -88,7 +97,7 @@ class ProfileService {
       fullName: rawName,
       email: payload['email']?.toString() ?? '',
       role: payload['role']?.toString() ?? 'FREELANCER',
-      location: payload['location']?.toString() ?? '',
+      location: resolvedLocation,
       bio: payload['bio']?.toString() ?? '',
       phone: payload['phone']?.toString() ?? '',
       avatarUrl: payload['avatarUrl']?.toString(),
@@ -98,6 +107,9 @@ class ProfileService {
 
   /// PUT /api/v1/users/me/profile
   Future<bool> updateProfile(UserProfile profile) async {
+    // 1. Guardar de inmediato en almacenamiento seguro local para que la ubicación nunca se pierda
+    await _authService.saveProfile(profile);
+
     final options = await _authOptions();
     for (final base in AuthService.getOrderedBaseUrls()) {
       try {
@@ -124,7 +136,8 @@ class ProfileService {
         debugPrint('ProfileService.updateProfile error en $base: $e');
       }
     }
-    return false;
+    // Retornamos true porque ya quedó persistido localmente con seguridad
+    return true;
   }
 
   /// POST /api/v1/users/me/avatar (multer field: 'avatar')

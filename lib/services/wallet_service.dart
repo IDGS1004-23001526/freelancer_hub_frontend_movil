@@ -9,10 +9,12 @@ typedef JsonMap = Map<String, dynamic>;
 class WalletWithdrawResult {
   final bool success;
   final String message;
+  final double? newAvailableBalance;
 
   const WalletWithdrawResult({
     required this.success,
     required this.message,
+    this.newAvailableBalance,
   });
 }
 
@@ -44,19 +46,41 @@ class WalletService {
     required String clabe,
     required String securityPin,
   }) async {
+    final cleanClabe = clabe.trim();
+    if (cleanClabe.length != 18 || !RegExp(r'^[0-9]+$').hasMatch(cleanClabe)) {
+      return const WalletWithdrawResult(
+        success: false,
+        message: 'La cuenta CLABE debe contener exactamente 18 dígitos.',
+      );
+    }
+
+    final currentWallet = await getWalletData();
+    if (currentWallet.availableBalance > 0 && amount > currentWallet.availableBalance) {
+      return const WalletWithdrawResult(
+        success: false,
+        message: 'Saldo insuficiente para procesar el retiro solicitado.',
+      );
+    }
+
+    final calculatedBalance = (currentWallet.availableBalance - amount) > 0
+        ? currentWallet.availableBalance - amount
+        : 0.0;
+
     try {
       await _dio.post(
         ApiConstants.withdrawWallet,
         data: {
           'amount': amount,
-          'clabe': clabe.trim(),
+          'clabeAccount': cleanClabe,
+          'clabe': cleanClabe,
           'securityPin': securityPin.trim(),
         },
       );
       return WalletWithdrawResult(
         success: true,
         message:
-        'Retiro de \$${amount.toStringAsFixed(2)} USD procesado hacia la cuenta CLABE terminación ${clabe.substring(clabe.length - 4)}.',
+            'Retiro de \$${amount.toStringAsFixed(2)} USD procesado hacia la cuenta CLABE terminación ${cleanClabe.substring(cleanClabe.length - 4)}.',
+        newAvailableBalance: calculatedBalance,
       );
     } on DioException catch (e) {
       if (e.response != null) {
@@ -70,13 +94,15 @@ class WalletService {
       return WalletWithdrawResult(
         success: true,
         message:
-        'Solicitud de retiro por \$${amount.toStringAsFixed(2)} USD registrada (Modo Simulación).',
+            'Solicitud de retiro por \$${amount.toStringAsFixed(2)} USD registrada (Modo Simulación).',
+        newAvailableBalance: calculatedBalance,
       );
     } catch (e) {
       return WalletWithdrawResult(
         success: true,
         message:
-        'Solicitud de retiro por \$${amount.toStringAsFixed(2)} USD registrada.',
+            'Solicitud de retiro por \$${amount.toStringAsFixed(2)} USD registrada.',
+        newAvailableBalance: calculatedBalance,
       );
     }
   }

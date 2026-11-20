@@ -10,15 +10,15 @@ import '../../theme/app_colors.dart';
 import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
-import '../chat/conversations_screen.dart';
-import '../contracts/contracts_screen.dart';
-import '../home/explorar_screen.dart';
+import '../main_navigation_screen.dart';
 import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
 import '../wallet/wallet_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool showBottomNav;
+
+  const ProfileScreen({super.key, this.showBottomNav = true});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -50,16 +50,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfileData() async {
     try {
-      AuthBloc? authBloc;
-      try {
-        authBloc = BlocProvider.of<AuthBloc>(context, listen: false);
-      } catch (_) {
-        authBloc = null;
+      if (mounted) {
+        AuthBloc? authBloc;
+        try {
+          authBloc = BlocProvider.of<AuthBloc>(context, listen: false);
+        } catch (_) {
+          authBloc = null;
+        }
+
+        final blocUser = authBloc?.state.user;
+        if (blocUser != null) {
+          setState(() => _user = blocUser);
+        }
       }
 
-      final blocUser = authBloc?.state.user;
-      if (blocUser != null && mounted) {
-        setState(() => _user = blocUser);
+      final cached = await _authService.getCachedProfile();
+      if (cached != null && mounted) {
+        setState(() => _user = cached);
       }
 
       final fetched = await _profileService.fetchProfile();
@@ -82,6 +89,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (updated != null && mounted) {
       setState(() => _user = updated);
+      await _authService.saveProfile(updated);
     }
   }
 
@@ -419,46 +427,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentNavIndex,
-        onTap: (index) {
-          if (index == 0) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ExplorarScreen()),
-            );
-            return;
-          }
-          if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ContractsScreen()),
-            );
-            return;
-          }
-          if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ConversationsScreen()),
-            );
-            return;
-          }
-          setState(() => _currentNavIndex = index);
-        },
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textSecondary,
-        backgroundColor: AppColors.surface,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.explore_outlined), label: 'Explorar'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.work_outline), label: 'Postulaciones'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
-        ],
-      ),
+      bottomNavigationBar: widget.showBottomNav
+          ? BottomNavigationBar(
+              currentIndex: _currentNavIndex,
+              onTap: (index) {
+                if (index == 0) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const MainNavigationScreen(initialIndex: 0)),
+                    (route) => false,
+                  );
+                  return;
+                }
+                if (index == 1) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const MainNavigationScreen(initialIndex: 1)),
+                    (route) => false,
+                  );
+                  return;
+                }
+                if (index == 2) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const MainNavigationScreen(initialIndex: 3)),
+                    (route) => false,
+                  );
+                  return;
+                }
+                setState(() => _currentNavIndex = index);
+              },
+              selectedItemColor: AppColors.primary,
+              unselectedItemColor: AppColors.textSecondary,
+              backgroundColor: AppColors.surface,
+              type: BottomNavigationBarType.fixed,
+              items: const [
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.explore_outlined), label: 'Explorar'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.work_outline), label: 'Contratos'),
+                BottomNavigationBarItem(
+                    icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
+                BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
+              ],
+            )
+          : null,
     );
   }
 }

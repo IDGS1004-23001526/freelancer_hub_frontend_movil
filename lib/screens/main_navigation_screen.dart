@@ -23,7 +23,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     ContractsScreen(),
     WalletScreen(),
     ConversationsScreen(),
-    ProfileScreen(),
+    ProfileScreen(showBottomNav: false),
   ];
 
   @override

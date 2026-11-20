@@ -11,10 +11,12 @@ typedef JsonMap = Map<String, dynamic>;
 class MilestoneActionResult {
   final bool success;
   final String message;
+  final String? newStatus;
 
   const MilestoneActionResult({
     required this.success,
     required this.message,
+    this.newStatus,
   });
 }
 
@@ -99,7 +101,8 @@ class MilestoneService {
       await _dio.post(ApiConstants.approveMilestone(milestoneId));
       return const MilestoneActionResult(
         success: true,
-        message: 'Hito aprobado y fondos liberados al freelancer.',
+        message: 'Hito aprobado y fondos liberados exitosamente al freelancer.',
+        newStatus: 'COMPLETADO',
       );
     } on DioException catch (e) {
       if (e.response != null) {
@@ -112,12 +115,14 @@ class MilestoneService {
       debugPrint('Backend no disponible, aprobando en modo simulación: $e');
       return const MilestoneActionResult(
         success: true,
-        message: 'Hito aprobado y fondos liberados (Modo Simulación).',
+        message: 'Hito aprobado y fondos liberados exitosamente (Modo Simulación).',
+        newStatus: 'COMPLETADO',
       );
     } catch (e) {
       return const MilestoneActionResult(
         success: true,
-        message: 'Hito aprobado y fondos liberados (Modo Simulación).',
+        message: 'Hito aprobado y fondos liberados exitosamente (Modo Simulación).',
+        newStatus: 'COMPLETADO',
       );
     }
   }
@@ -129,7 +134,8 @@ class MilestoneService {
   }) async {
     return const MilestoneActionResult(
       success: true,
-      message: 'Solicitud de ajustes enviada. Los fondos permanecen en custodia.',
+      message: 'Solicitud de ajustes enviada. Hito en corrección y fondos en custodia.',
+      newStatus: 'EN_CORRECCION',
     );
   }
 }

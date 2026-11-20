@@ -9,7 +9,7 @@ import '../../utils/form_validators.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/role_selection_card.dart';
-import '../profile/profile_screen.dart';
+import '../main_navigation_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -75,7 +75,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            MaterialPageRoute(
+                builder: (_) => const MainNavigationScreen(initialIndex: 0)),
             (route) => false,
           );
         } else if (state.status == AuthStatus.error &&
