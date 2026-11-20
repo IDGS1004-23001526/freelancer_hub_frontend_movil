@@ -428,5 +428,140 @@ void main() {
       // El socket debe haber emitido el GIF
       expect(mockSocket.sentMessages.any((m) => m.content.contains('[gif:')), isTrue);
     });
+
+    testWidgets('Swipe to Reply estilo WhatsApp: deslizar mensaje, vista previa y cita en respuesta', (
+      WidgetTester tester,
+    ) async {
+      final mockSocket = MockChatSocketService();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatScreen(
+            conversationId: 'conv_swipe_test',
+            peerName: 'Carlos Méndez',
+            currentUserId: 'my_user_id',
+            currentUserName: 'Yo',
+            socketService: mockSocket,
+            initialMessages: [
+              ChatMessage(
+                id: 'msg_target_1',
+                conversationId: 'conv_swipe_test',
+                senderId: 'user_peer_001',
+                receiverId: 'my_user_id',
+                senderName: 'Carlos Méndez',
+                content: '¿Puedes entregar el módulo para el viernes?',
+                timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
+                status: MessageStatus.read,
+                isMine: false,
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Mensaje inicial visible en pantalla
+      final targetMessageFinder = find.text('¿Puedes entregar el módulo para el viernes?');
+      expect(targetMessageFinder, findsOneWidget);
+
+      // 2. Banner de respuesta no debe estar visible inicialmente
+      expect(find.byKey(const Key('chat_replying_banner')), findsNothing);
+
+      // 3. Deslizar horizontalmente el mensaje hacia la derecha (swipe to reply)
+      await tester.drag(targetMessageFinder, const Offset(80.0, 0.0));
+      await tester.pumpAndSettle();
+
+      // 4. El banner estilo WhatsApp debe mostrarse con el autor y snippet
+      expect(find.byKey(const Key('chat_replying_banner')), findsOneWidget);
+      expect(find.text('Respondiendo a Carlos Méndez'), findsOneWidget);
+      expect(find.text('¿Puedes entregar el módulo para el viernes?'), findsWidgets);
+
+      // 5. Probar el botón de cancelar respuesta
+      final cancelBtnFinder = find.byKey(const Key('chat_cancel_reply_button'));
+      expect(cancelBtnFinder, findsOneWidget);
+      await tester.tap(cancelBtnFinder);
+      await tester.pumpAndSettle();
+
+      // Banner debe haber desaparecido
+      expect(find.byKey(const Key('chat_replying_banner')), findsNothing);
+
+      // 6. Volver a deslizar para responder y enviar mensaje
+      await tester.drag(targetMessageFinder, const Offset(80.0, 0.0));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('chat_replying_banner')), findsOneWidget);
+
+      // Escribir texto de respuesta
+      await tester.enterText(find.byKey(const Key('chat_input_field')), '¡Sí, seguro! Lo tendré listo.');
+      await tester.pumpAndSettle();
+
+      // Enviar respuesta
+      await tester.tap(find.byKey(const Key('chat_send_button')));
+      await tester.pumpAndSettle();
+
+      // 7. El banner debe haberse cerrado automáticamente
+      expect(find.byKey(const Key('chat_replying_banner')), findsNothing);
+
+      // 8. El mensaje enviado debe aparecer en pantalla con su texto y la cita previa visible
+      expect(find.text('¡Sí, seguro! Lo tendré listo.'), findsOneWidget);
+
+      // 9. El socket debe haber recibido el mensaje con los campos replyTo
+      expect(mockSocket.sentMessages.isNotEmpty, isTrue);
+      final sentReply = mockSocket.sentMessages.last;
+      expect(sentReply.replyToMessageId, equals('msg_target_1'));
+      expect(sentReply.replyToSenderName, equals('Carlos Méndez'));
+      expect(sentReply.replyToContent, contains('¿Puedes entregar el módulo'));
+      expect(sentReply.hasReply, isTrue);
+
+      // 10. La caja de cita en la burbuja del mensaje enviado debe estar presente
+      expect(find.byKey(Key('quoted_reply_${sentReply.id}')), findsOneWidget);
+    });
+
+    test('ChatMessage model maneja replyTo fields, persistencia en content y snippets', () {
+      final msg = ChatMessage(
+        id: 'msg_99',
+        senderId: 'user_1',
+        receiverId: 'user_2',
+        senderName: 'Ana',
+        content: 'Hola mundo',
+        timestamp: DateTime.now(),
+        isMine: false,
+        replyToMessageId: 'msg_88',
+        replyToSenderName: 'Carlos',
+        replyToContent: 'Mensaje anterior',
+      );
+
+      expect(msg.hasReply, isTrue);
+      expect(msg.quoteSnippet, equals('Hola mundo'));
+      expect(msg.replySnippet, equals('Mensaje anterior'));
+
+      final json = msg.toJson();
+      expect(json['replyToMessageId'], equals('msg_88'));
+      expect(json['replyToSenderName'], equals('Carlos'));
+      expect(json['replyToContent'], equals('Mensaje anterior'));
+      expect(json['content'], contains('[reply:'));
+
+      final reconstructed = ChatMessage.fromJson(json);
+      expect(reconstructed.replyToMessageId, equals('msg_88'));
+      expect(reconstructed.replyToSenderName, equals('Carlos'));
+      expect(reconstructed.replyToContent, equals('Mensaje anterior'));
+      expect(reconstructed.content, equals('Hola mundo'));
+
+      // Probar decodificación de mensaje persistido en BD que solo almacena content
+      final rawBackendJson = {
+        'id': 'msg_from_db',
+        'senderId': 'user_1',
+        'receiverId': 'user_2',
+        'senderName': 'Carlos',
+        'content': '[reply:{"id":"msg_88","sender":"Carlos","text":"Mensaje anterior"}]\n¡Sí, seguro!',
+        'timestamp': DateTime.now().toIso8601String(),
+        'status': 'sent',
+      };
+      final fromDb = ChatMessage.fromJson(rawBackendJson);
+      expect(fromDb.hasReply, isTrue);
+      expect(fromDb.replyToMessageId, equals('msg_88'));
+      expect(fromDb.replyToSenderName, equals('Carlos'));
+      expect(fromDb.replyToContent, equals('Mensaje anterior'));
+      expect(fromDb.content, equals('¡Sí, seguro!'));
+    });
   });
 }

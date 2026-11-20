@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/chat_message.dart';
 import '../../models/chat_sticker.dart';
@@ -49,6 +50,9 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatMessageQueue _messageQueue = ChatMessageQueue();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _inputFocusNode = FocusNode();
+
+  ChatMessage? _replyingMessage;
 
   StreamSubscription? _messageSubscription;
   StreamSubscription? _connectionSubscription;
@@ -61,6 +65,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   SocketConnectionState _connectionState = SocketConnectionState.connected;
   bool _isPeerTyping = false;
+  bool _isSending = false;
   late String _currentUserId;
   late String _currentUserName;
 
@@ -210,14 +215,41 @@ class _ChatScreenState extends State<ChatScreen> {
                 m.content == msg.content,
           );
           if (tempIdx != -1) {
-            _messages[tempIdx] = msg;
+            final old = _messages[tempIdx];
+            _messages[tempIdx] = msg.copyWith(
+              replyToMessageId: msg.replyToMessageId ?? old.replyToMessageId,
+              replyToSenderName: msg.replyToSenderName ?? old.replyToSenderName,
+              replyToContent: msg.replyToContent ?? old.replyToContent,
+            );
           } else {
-            _messages.add(msg);
+            final dupIdx = _messages.lastIndexWhere(
+              (m) =>
+                  m.content == msg.content &&
+                  (m.senderId == msg.senderId || (m.isMine && msg.isMine)) &&
+                  msg.timestamp.difference(m.timestamp).inSeconds.abs() < 8,
+            );
+            if (dupIdx != -1) {
+              final old = _messages[dupIdx];
+              _messages[dupIdx] = msg.copyWith(
+                replyToMessageId: msg.replyToMessageId ?? old.replyToMessageId,
+                replyToSenderName: msg.replyToSenderName ?? old.replyToSenderName,
+                replyToContent: msg.replyToContent ?? old.replyToContent,
+              );
+            } else {
+              _messages.add(msg);
+            }
           }
           hasNewOrUpdated = true;
         } else {
-          if (_messages[existingIdx].status != msg.status) {
-            _messages[existingIdx] = _messages[existingIdx].copyWith(status: msg.status);
+          final old = _messages[existingIdx];
+          final updated = msg.copyWith(
+            replyToMessageId: msg.replyToMessageId ?? old.replyToMessageId,
+            replyToSenderName: msg.replyToSenderName ?? old.replyToSenderName,
+            replyToContent: msg.replyToContent ?? old.replyToContent,
+          );
+          if (_messages[existingIdx].status != updated.status ||
+              _messages[existingIdx].hasReply != updated.hasReply) {
+            _messages[existingIdx] = updated;
             hasNewOrUpdated = true;
           }
         }
@@ -239,14 +271,24 @@ class _ChatScreenState extends State<ChatScreen> {
           (m) =>
               m.isMine &&
               (m.id.startsWith('msg_') || m.status == MessageStatus.sending) &&
-              m.content == sentMsg.content,
+              (m.content == sentMsg.content || m.id == sentMsg.id),
         );
         if (tempIdx != -1) {
-          _messages[tempIdx] = sentMsg;
+          final old = _messages[tempIdx];
+          _messages[tempIdx] = sentMsg.copyWith(
+            replyToMessageId: sentMsg.replyToMessageId ?? old.replyToMessageId,
+            replyToSenderName: sentMsg.replyToSenderName ?? old.replyToSenderName,
+            replyToContent: sentMsg.replyToContent ?? old.replyToContent,
+          );
         } else {
           final alreadyIdx = _messages.indexWhere((m) => m.id == sentMsg.id);
           if (alreadyIdx != -1) {
-            _messages[alreadyIdx] = sentMsg;
+            final old = _messages[alreadyIdx];
+            _messages[alreadyIdx] = sentMsg.copyWith(
+              replyToMessageId: sentMsg.replyToMessageId ?? old.replyToMessageId,
+              replyToSenderName: sentMsg.replyToSenderName ?? old.replyToSenderName,
+              replyToContent: sentMsg.replyToContent ?? old.replyToContent,
+            );
           }
           // Si no está el temporal ni por ID, ya fue procesado o sincronizado, no duplicar
         }
@@ -287,7 +329,12 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() {
         final existingIndex = _messages.indexWhere((m) => m.id == message.id);
         if (existingIndex != -1) {
-          _messages[existingIndex] = message;
+          final old = _messages[existingIndex];
+          _messages[existingIndex] = message.copyWith(
+            replyToMessageId: message.replyToMessageId ?? old.replyToMessageId,
+            replyToSenderName: message.replyToSenderName ?? old.replyToSenderName,
+            replyToContent: message.replyToContent ?? old.replyToContent,
+          );
           return;
         }
 
@@ -300,7 +347,12 @@ class _ChatScreenState extends State<ChatScreen> {
                 m.content == message.content,
           );
           if (optimisticIndex != -1) {
-            _messages[optimisticIndex] = message;
+            final old = _messages[optimisticIndex];
+            _messages[optimisticIndex] = message.copyWith(
+              replyToMessageId: message.replyToMessageId ?? old.replyToMessageId,
+              replyToSenderName: message.replyToSenderName ?? old.replyToSenderName,
+              replyToContent: message.replyToContent ?? old.replyToContent,
+            );
             return;
           }
 
@@ -311,7 +363,29 @@ class _ChatScreenState extends State<ChatScreen> {
                 message.timestamp.difference(m.timestamp).inSeconds.abs() < 8,
           );
           if (recentDuplicate != -1) {
-            _messages[recentDuplicate] = message;
+            final old = _messages[recentDuplicate];
+            _messages[recentDuplicate] = message.copyWith(
+              replyToMessageId: message.replyToMessageId ?? old.replyToMessageId,
+              replyToSenderName: message.replyToSenderName ?? old.replyToSenderName,
+              replyToContent: message.replyToContent ?? old.replyToContent,
+            );
+            return;
+          }
+        } else {
+          final peerDuplicate = _messages.lastIndexWhere(
+            (m) =>
+                !m.isMine &&
+                m.senderId == message.senderId &&
+                m.content == message.content &&
+                message.timestamp.difference(m.timestamp).inSeconds.abs() < 8,
+          );
+          if (peerDuplicate != -1) {
+            final old = _messages[peerDuplicate];
+            _messages[peerDuplicate] = message.copyWith(
+              replyToMessageId: message.replyToMessageId ?? old.replyToMessageId,
+              replyToSenderName: message.replyToSenderName ?? old.replyToSenderName,
+              replyToContent: message.replyToContent ?? old.replyToContent,
+            );
             return;
           }
         }
@@ -407,44 +481,91 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _startReplying(ChatMessage message) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _replyingMessage = message;
+    });
+    _inputFocusNode.requestFocus();
+  }
+
+  void _cancelReplying() {
+    setState(() {
+      _replyingMessage = null;
+    });
+  }
+
+  void _scrollToMessage(String targetId) {
+    final index = _messages.indexWhere((m) => m.id == targetId);
+    if (index != -1 && _scrollController.hasClients) {
+      final double targetPos =
+          (index / _messages.length) * _scrollController.position.maxScrollExtent;
+      _scrollController.animateTo(
+        targetPos.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   Future<void> _sendMessage() async {
+    if (_isSending) return;
     final text = _textController.text.trim();
     if (text.isEmpty) return;
 
-    if (_currentUserId == 'my_user_id' || _currentUserId.isEmpty) {
-      _extractUserIdFromToken().then((val) {
-        if (val != null && mounted) setState(() => _currentUserId = val);
-      });
+    _isSending = true;
+    try {
+      if (_currentUserId == 'my_user_id' || _currentUserId.isEmpty) {
+        _extractUserIdFromToken().then((val) {
+          if (val != null && mounted) setState(() => _currentUserId = val);
+        });
+      }
+
+      final replyId = _replyingMessage?.id;
+      final replySender = _replyingMessage != null
+          ? (_replyingMessage!.isMine
+              ? 'Tú'
+              : (_replyingMessage!.senderName.isNotEmpty
+                  ? _replyingMessage!.senderName
+                  : widget.peerName))
+          : null;
+      final replySnippet = _replyingMessage?.quoteSnippet;
+
+      final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
+      final newMessage = ChatMessage(
+        id: tempId,
+        conversationId: widget.conversationId,
+        senderId: _currentUserId,
+        receiverId: widget.peerId,
+        senderName: _currentUserName,
+        content: text,
+        timestamp: DateTime.now(),
+        status: MessageStatus.sending, // Indicador optimista de envío inicial
+        isMine: true,
+        replyToMessageId: replyId,
+        replyToSenderName: replySender,
+        replyToContent: replySnippet,
+      );
+
+      _textController.clear();
+      if (mounted) {
+        setState(() {
+          _replyingMessage = null;
+          _messages.add(newMessage);
+        });
+      }
+
+      if (_socketService.currentState == SocketConnectionState.connected) {
+        _socketService.sendTyping(false, widget.conversationId);
+      }
+
+      _scrollToBottom();
+
+      // Enviar a través de la cola secuencial (cuello de botella de salida con reintentos automáticos)
+      _messageQueue.enqueue(newMessage, socketService: _socketService);
+    } finally {
+      _isSending = false;
     }
-
-    final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
-    final newMessage = ChatMessage(
-      id: tempId,
-      conversationId: widget.conversationId,
-      senderId: _currentUserId,
-      receiverId: widget.peerId,
-      senderName: _currentUserName,
-      content: text,
-      timestamp: DateTime.now(),
-      status: MessageStatus.sending, // Indicador optimista de envío inicial
-      isMine: true,
-    );
-
-    _textController.clear();
-    if (mounted) {
-      setState(() {
-        _messages.add(newMessage);
-      });
-    }
-
-    if (_socketService.currentState == SocketConnectionState.connected) {
-      _socketService.sendTyping(false, widget.conversationId);
-    }
-
-    _scrollToBottom();
-
-    // Enviar a través de la cola secuencial (cuello de botella de salida con reintentos automáticos)
-    _messageQueue.enqueue(newMessage, socketService: _socketService);
   }
 
   void _sendSticker(ChatSticker sticker) {
@@ -453,6 +574,16 @@ class _ChatScreenState extends State<ChatScreen> {
         if (val != null && mounted) setState(() => _currentUserId = val);
       });
     }
+
+    final replyId = _replyingMessage?.id;
+    final replySender = _replyingMessage != null
+        ? (_replyingMessage!.isMine
+            ? 'Tú'
+            : (_replyingMessage!.senderName.isNotEmpty
+                ? _replyingMessage!.senderName
+                : widget.peerName))
+        : null;
+    final replySnippet = _replyingMessage?.quoteSnippet;
 
     final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
     final newMessage = ChatMessage(
@@ -466,10 +597,14 @@ class _ChatScreenState extends State<ChatScreen> {
       timestamp: DateTime.now(),
       status: MessageStatus.sending,
       isMine: true,
+      replyToMessageId: replyId,
+      replyToSenderName: replySender,
+      replyToContent: replySnippet,
     );
 
     if (mounted) {
       setState(() {
+        _replyingMessage = null;
         _messages.add(newMessage);
       });
     }
@@ -485,6 +620,16 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     }
 
+    final replyId = _replyingMessage?.id;
+    final replySender = _replyingMessage != null
+        ? (_replyingMessage!.isMine
+            ? 'Tú'
+            : (_replyingMessage!.senderName.isNotEmpty
+                ? _replyingMessage!.senderName
+                : widget.peerName))
+        : null;
+    final replySnippet = _replyingMessage?.quoteSnippet;
+
     final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
     final newMessage = ChatMessage(
       id: tempId,
@@ -497,10 +642,14 @@ class _ChatScreenState extends State<ChatScreen> {
       timestamp: DateTime.now(),
       status: MessageStatus.sending,
       isMine: true,
+      replyToMessageId: replyId,
+      replyToSenderName: replySender,
+      replyToContent: replySnippet,
     );
 
     if (mounted) {
       setState(() {
+        _replyingMessage = null;
         _messages.add(newMessage);
       });
     }
@@ -516,6 +665,16 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     }
 
+    final replyId = _replyingMessage?.id;
+    final replySender = _replyingMessage != null
+        ? (_replyingMessage!.isMine
+            ? 'Tú'
+            : (_replyingMessage!.senderName.isNotEmpty
+                ? _replyingMessage!.senderName
+                : widget.peerName))
+        : null;
+    final replySnippet = _replyingMessage?.quoteSnippet;
+
     final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
     final newMessage = ChatMessage(
       id: tempId,
@@ -528,10 +687,14 @@ class _ChatScreenState extends State<ChatScreen> {
       timestamp: DateTime.now(),
       status: MessageStatus.sending,
       isMine: true,
+      replyToMessageId: replyId,
+      replyToSenderName: replySender,
+      replyToContent: replySnippet,
     );
 
     if (mounted) {
       setState(() {
+        _replyingMessage = null;
         _messages.add(newMessage);
       });
     }
@@ -646,6 +809,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _textController.dispose();
     _scrollController.dispose();
+    _inputFocusNode.dispose();
 
     if (widget.socketService == null) {
       _socketService.dispose();
@@ -676,7 +840,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemCount: _messages.length,
                   itemBuilder: (context, index) {
                     final message = _messages[index];
-                    return _buildMessageBubble(message);
+                    return _SwipeToReplyWrapper(
+                      key: ValueKey('swipe_${message.id}'),
+                      onReply: () => _startReplying(message),
+                      child: _buildMessageBubble(message),
+                    );
                   },
                 ),
               ),
@@ -684,6 +852,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
             // Indicador de "Escribiendo..."
             if (_isPeerTyping) _buildTypingIndicator(),
+
+            // Banner de respuesta estilo WhatsApp
+            if (_replyingMessage != null) _buildReplyingBanner(),
 
             // Barra inferior para redactar y enviar mensajes
             _buildInputArea(),
@@ -863,15 +1034,29 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    isMine ? 'Tú' : (message.senderName.isNotEmpty ? message.senderName : widget.peerName),
-                    style: GoogleFonts.poppins(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: isMine ? Colors.white70 : AppColors.primary,
+                  if (!isMine) ...[
+                    Text(
+                      message.senderName.isNotEmpty ? message.senderName : widget.peerName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
+                    const SizedBox(height: 2),
+                  ],
+                  if (message.hasReply) _buildQuotedReplyBox(message),
+                  if (isMine && !message.hasReply) ...[
+                    Text(
+                      'Tú',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
                   Text(
                     message.content,
                     style: GoogleFonts.poppins(
@@ -925,6 +1110,9 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Container(
             width: 230,
             decoration: BoxDecoration(
+              color: message.hasReply
+                  ? (isMine ? AppColors.chatBubbleMine : AppColors.chatBubblePeer)
+                  : null,
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(16),
                 topRight: const Radius.circular(16),
@@ -942,14 +1130,23 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(16),
-                topRight: const Radius.circular(16),
-                bottomLeft: Radius.circular(isMine ? 16 : 4),
-                bottomRight: Radius.circular(isMine ? 4 : 16),
-              ),
-              child: Stack(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (message.hasReply)
+                  Padding(
+                    padding: const EdgeInsets.all(6.0),
+                    child: _buildQuotedReplyBox(message),
+                  ),
+                ClipRRect(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(message.hasReply ? 4 : 16),
+                    topRight: Radius.circular(message.hasReply ? 4 : 16),
+                    bottomLeft: Radius.circular(isMine ? 16 : 4),
+                    bottomRight: Radius.circular(isMine ? 4 : 16),
+                  ),
+                  child: Stack(
                 children: [
                   // Imagen o GIF animado
                   if (gifUrl != null && gifUrl.isNotEmpty)
@@ -1039,11 +1236,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   /// Renderizado especial para Stickers en el chat (estilo WhatsApp con soporte de API y badges)
   Widget _buildStickerBubble(ChatMessage message) {
@@ -1064,66 +1263,78 @@ class _ChatScreenState extends State<ChatScreen> {
             },
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 8),
-              child: Stack(
+              child: Column(
+                crossAxisAlignment:
+                    isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      stickerUrl,
-                      width: 145,
-                      height: 145,
-                      fit: BoxFit.contain, // Mantiene la transparencia y forma del sticker
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return const SizedBox(
-                          width: 120,
-                          height: 120,
-                          child: Center(
-                            child: SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                  if (message.hasReply)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: _buildQuotedReplyBox(message),
+                    ),
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          stickerUrl,
+                          width: 145,
+                          height: 145,
+                          fit: BoxFit.contain, // Mantiene la transparencia y forma del sticker
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return const SizedBox(
+                              width: 120,
+                              height: 120,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Center(
+                              child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 28),
                             ),
                           ),
-                        );
-                      },
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Center(
-                          child: Icon(Icons.broken_image_outlined, color: Colors.grey, size: 28),
                         ),
                       ),
-                    ),
-                  ),
-                  // Timestamp y doble check flotante semitransparente estilo WhatsApp
-                  Positioned(
-                    bottom: 2,
-                    right: 4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.45),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            message.formattedTime,
-                            style: GoogleFonts.poppins(fontSize: 9.5, color: Colors.white, fontWeight: FontWeight.w500),
+                      // Timestamp y doble check flotante semitransparente estilo WhatsApp
+                      Positioned(
+                        bottom: 2,
+                        right: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.45),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          if (isMine) ...[
-                            const SizedBox(width: 3),
-                            _buildStatusIcon(message.status),
-                          ],
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                message.formattedTime,
+                                style: GoogleFonts.poppins(fontSize: 9.5, color: Colors.white, fontWeight: FontWeight.w500),
+                              ),
+                              if (isMine) ...[
+                                const SizedBox(width: 3),
+                                _buildStatusIcon(message.status),
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -1171,6 +1382,11 @@ class _ChatScreenState extends State<ChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (message.hasReply)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: _buildQuotedReplyBox(message),
+                  ),
                 Icon(
                   icon,
                   size: 44,
@@ -1310,6 +1526,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: TextField(
                 key: const Key('chat_input_field'),
                 controller: _textController,
+                focusNode: _inputFocusNode,
                 textCapitalization: TextCapitalization.sentences,
                 maxLines: 4,
                 minLines: 1,
@@ -1341,6 +1558,282 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReplyingBanner() {
+    if (_replyingMessage == null) return const SizedBox.shrink();
+
+    final rep = _replyingMessage!;
+    final author = rep.isMine
+        ? 'ti mismo'
+        : (rep.senderName.isNotEmpty ? rep.senderName : widget.peerName);
+
+    return Container(
+      key: const Key('chat_replying_banner'),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          top: BorderSide(color: AppColors.border.withOpacity(0.6)),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.only(left: 10, top: 6, bottom: 6, right: 6),
+        decoration: BoxDecoration(
+          color: AppColors.primaryLight.withOpacity(0.35),
+          borderRadius: BorderRadius.circular(8),
+          border: const Border(
+            left: BorderSide(
+              color: AppColors.primary,
+              width: 3.5,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.reply_rounded,
+              color: AppColors.primary,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Respondiendo a $author',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    rep.quoteSnippet,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              key: const Key('chat_cancel_reply_button'),
+              icon: const Icon(Icons.close, size: 18, color: AppColors.textSecondary),
+              tooltip: 'Cancelar respuesta',
+              onPressed: _cancelReplying,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuotedReplyBox(ChatMessage message) {
+    if (!message.hasReply) return const SizedBox.shrink();
+
+    final isMine = message.isMine;
+    final senderTitle = message.replyToSenderName ?? 'Mensaje';
+    final replyContent = message.replySnippet;
+
+    return GestureDetector(
+      onTap: () {
+        if (message.replyToMessageId != null) {
+          _scrollToMessage(message.replyToMessageId!);
+        }
+      },
+      child: Container(
+        key: Key('quoted_reply_${message.id}'),
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isMine
+              ? Colors.black.withOpacity(0.20)
+              : AppColors.primaryLight.withOpacity(0.40),
+          borderRadius: BorderRadius.circular(8),
+          border: Border(
+            left: BorderSide(
+              color: isMine ? Colors.white : AppColors.primary,
+              width: 3.5,
+            ),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              senderTitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: isMine ? Colors.white : AppColors.primary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              replyContent,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                color: isMine ? Colors.white70 : AppColors.textPrimary.withOpacity(0.85),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SwipeToReplyWrapper extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onReply;
+
+  const _SwipeToReplyWrapper({
+    super.key,
+    required this.child,
+    required this.onReply,
+  });
+
+  @override
+  State<_SwipeToReplyWrapper> createState() => _SwipeToReplyWrapperState();
+}
+
+class _SwipeToReplyWrapperState extends State<_SwipeToReplyWrapper>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _offsetAnim;
+  double _dragOffset = 0.0;
+  bool _hasTriggeredHaptic = false;
+  static const double _replyThreshold = 38.0;
+  static const double _maxDragOffset = 70.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    _offsetAnim = Tween<double>(begin: 0.0, end: 0.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+    )..addListener(() {
+        setState(() {
+          _dragOffset = _offsetAnim.value;
+        });
+      });
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    final delta = details.primaryDelta!;
+    // Si ya superó el umbral, aplicar resistencia elástica
+    final factor = _dragOffset > _replyThreshold ? 0.35 : 1.0;
+    final next = _dragOffset + delta * factor;
+    if (next >= 0) {
+      setState(() {
+        _dragOffset = next.clamp(0.0, _maxDragOffset);
+      });
+
+      if (_dragOffset >= _replyThreshold && !_hasTriggeredHaptic) {
+        _hasTriggeredHaptic = true;
+        HapticFeedback.lightImpact();
+      } else if (_dragOffset < _replyThreshold && _hasTriggeredHaptic) {
+        _hasTriggeredHaptic = false;
+      }
+    }
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    if (_dragOffset >= _replyThreshold) {
+      widget.onReply();
+    }
+    _resetOffset();
+  }
+
+  void _onHorizontalDragCancel() {
+    _resetOffset();
+  }
+
+  void _resetOffset() {
+    _hasTriggeredHaptic = false;
+    _offsetAnim = Tween<double>(begin: _dragOffset, end: 0.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
+    );
+    _animController.forward(from: 0.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = (_dragOffset / _replyThreshold).clamp(0.0, 1.0);
+    final opacity = (_dragOffset / 20.0).clamp(0.0, 1.0);
+    final reached = _dragOffset >= _replyThreshold;
+
+    return Stack(
+      alignment: Alignment.centerLeft,
+      children: [
+        if (_dragOffset > 0)
+          Positioned(
+            left: 12,
+            child: Opacity(
+              opacity: opacity,
+              child: Transform.scale(
+                scale: 0.6 + (scale * 0.4),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: reached ? AppColors.primary : Colors.grey.shade400,
+                    shape: BoxShape.circle,
+                    boxShadow: reached
+                        ? [
+                            BoxShadow(
+                              color: AppColors.primary.withOpacity(0.35),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: const Icon(
+                    Icons.reply_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        GestureDetector(
+          onHorizontalDragUpdate: _onHorizontalDragUpdate,
+          onHorizontalDragEnd: _onHorizontalDragEnd,
+          onHorizontalDragCancel: _onHorizontalDragCancel,
+          behavior: HitTestBehavior.translucent,
+          child: Transform.translate(
+            offset: Offset(_dragOffset, 0),
+            child: widget.child,
+          ),
+        ),
+      ],
     );
   }
 }

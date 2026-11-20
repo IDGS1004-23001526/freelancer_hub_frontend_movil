@@ -211,7 +211,6 @@ class ChatSocketService {
 
     if (_socket != null && _socket!.connected) {
       _socket!.emit('send_message', payload);
-      _socket!.emit('new_message', payload);
     }
   }
 

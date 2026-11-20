@@ -117,25 +117,21 @@ class ChatMessageQueue {
       try {
         ChatMessage? saved;
 
-        // 1. Si el socket está conectado, emitir inmediatamente por WebSocket
+        // 1. Si el socket está conectado, emitir exclusivamente por WebSocket
         if (socketService != null &&
             socketService.currentState == SocketConnectionState.connected) {
           socketService.sendMessage(msg);
           saved = msg.copyWith(status: MessageStatus.sent);
-          // Persistir por REST en background sin bloquear la cola
-          _apiService.sendMessage(
-            msg.conversationId,
-            msg.content,
-            currentUserId: msg.senderId,
-            attachmentUrl: msg.attachmentUrl,
-          ).catchError((_) => null);
         } else {
-          // 2. Si el socket no está disponible, enviar sincrónicamente por REST
+          // 2. Si el socket no está disponible, enviar sincrónicamente por REST (respaldo)
           saved = await _apiService.sendMessage(
             msg.conversationId,
             msg.content,
             currentUserId: msg.senderId,
             attachmentUrl: msg.attachmentUrl,
+            replyToMessageId: msg.replyToMessageId,
+            replyToSenderName: msg.replyToSenderName,
+            replyToContent: msg.replyToContent,
           );
         }
 

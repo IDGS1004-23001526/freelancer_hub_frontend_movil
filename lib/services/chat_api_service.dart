@@ -180,15 +180,32 @@ class ChatApiService {
     String content, {
     required String currentUserId,
     String? attachmentUrl,
+    String? replyToMessageId,
+    String? replyToSenderName,
+    String? replyToContent,
   }) async {
+    final effectiveContent = (replyToContent != null &&
+            replyToContent.isNotEmpty &&
+            !content.startsWith('[reply:'))
+        ? ChatMessage.encodeContentWithReply(
+            replyToMessageId: replyToMessageId,
+            replyToSenderName: replyToSenderName,
+            replyToContent: replyToContent,
+            content: content,
+          )
+        : content;
+
     for (final base in AuthService.getOrderedBaseUrls()) {
       try {
         final response = await _apiClient.dio.post(
           '$base/chats/$conversationId/messages',
           data: {
-            'content': content,
+            'content': effectiveContent,
             if (attachmentUrl != null && attachmentUrl.isNotEmpty)
               'attachmentUrl': attachmentUrl,
+            if (replyToMessageId != null) 'replyToMessageId': replyToMessageId,
+            if (replyToSenderName != null) 'replyToSenderName': replyToSenderName,
+            if (replyToContent != null) 'replyToContent': replyToContent,
           },
         );
 
@@ -207,7 +224,12 @@ class ChatApiService {
           }
 
           if (payload != null) {
-            return ChatMessage.fromJson(payload, currentUserId: currentUserId);
+            final parsed = ChatMessage.fromJson(payload, currentUserId: currentUserId);
+            return parsed.copyWith(
+              replyToMessageId: parsed.replyToMessageId ?? replyToMessageId,
+              replyToSenderName: parsed.replyToSenderName ?? replyToSenderName,
+              replyToContent: parsed.replyToContent ?? replyToContent,
+            );
           }
         }
       } catch (e) {

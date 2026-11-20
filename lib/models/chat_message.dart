@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 enum MessageStatus {
   sending,
   sent,
@@ -17,6 +19,9 @@ class ChatMessage {
   final MessageStatus status;
   final bool isMine;
   final String? attachmentUrl;
+  final String? replyToMessageId;
+  final String? replyToSenderName;
+  final String? replyToContent;
 
   ChatMessage({
     required this.id,
@@ -29,7 +34,50 @@ class ChatMessage {
     this.status = MessageStatus.sent,
     required this.isMine,
     this.attachmentUrl,
+    this.replyToMessageId,
+    this.replyToSenderName,
+    this.replyToContent,
   });
+
+  /// Determina si el mensaje contiene una respuesta/cita citada
+  bool get hasReply =>
+      replyToContent != null && replyToContent!.trim().isNotEmpty;
+
+  /// Texto descriptivo resumido para mostrar cuando se cita este mensaje
+  String get quoteSnippet {
+    if (isSticker) return '🏷️ Sticker';
+    if (isGif) return '🎬 GIF';
+    final trimmed = content.trim();
+    if (trimmed.isEmpty) return 'Archivo adjunto';
+    return trimmed;
+  }
+
+  /// Empaqueta el prefijo de metadatos de respuesta dentro del campo content para persistencia agnóstica de base de datos
+  static String encodeContentWithReply({
+    required String? replyToMessageId,
+    required String? replyToSenderName,
+    required String? replyToContent,
+    required String content,
+  }) {
+    if (replyToContent == null || replyToContent.trim().isEmpty) {
+      return content;
+    }
+    final meta = jsonEncode({
+      'id': replyToMessageId ?? '',
+      'sender': replyToSenderName ?? '',
+      'text': replyToContent.trim(),
+    });
+    return '[reply:$meta]\n$content';
+  }
+
+  /// Texto formateado del mensaje citado
+  String get replySnippet {
+    if (replyToContent == null) return '';
+    final c = replyToContent!.trim();
+    if (c.startsWith('[sticker:') && c.endsWith(']')) return '🏷️ Sticker';
+    if (c.startsWith('[gif:') && c.endsWith(']')) return '🎬 GIF';
+    return c;
+  }
 
   /// Determina si el mensaje corresponde a un Sticker
   bool get isSticker {
@@ -114,6 +162,40 @@ class ChatMessage {
 
     final attachment = json['attachmentUrl'] ?? json['attachment'] ?? json['imageUrl'];
 
+    String resolvedContent =
+        (json['content'] ?? json['message'] ?? json['text'] ?? '').toString();
+
+    String? replyId = json['replyToMessageId'] ??
+        json['replyTo'] ??
+        json['reply_to_message_id'];
+    String? replySender = json['replyToSenderName'] ??
+        json['reply_to_sender_name'] ??
+        json['replySenderName'];
+    String? replyText = json['replyToContent'] ??
+        json['reply_to_content'] ??
+        json['replyContent'] ??
+        json['replySnippet'];
+
+    // Decodificar metadatos de respuesta embebidos en el contenido si existen
+    if (resolvedContent.startsWith('[reply:')) {
+      final closeIdx = resolvedContent.indexOf(']');
+      if (closeIdx != -1) {
+        final metaRaw = resolvedContent.substring(7, closeIdx);
+        try {
+          final decoded = jsonDecode(metaRaw);
+          if (decoded is Map) {
+            replyId ??= decoded['id']?.toString();
+            replySender ??= decoded['sender']?.toString();
+            replyText ??= decoded['text']?.toString();
+            resolvedContent = resolvedContent.substring(closeIdx + 1);
+            if (resolvedContent.startsWith('\n')) {
+              resolvedContent = resolvedContent.substring(1);
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
     return ChatMessage(
       id: (json['id'] ??
               json['_id'] ??
@@ -125,8 +207,7 @@ class ChatMessage {
       receiverId: (json['receiverId'] ?? json['recipient'] ?? json['to'] ?? '')
           .toString(),
       senderName: (json['senderName'] ?? json['name'] ?? 'Usuario').toString(),
-      content:
-          (json['content'] ?? json['message'] ?? json['text'] ?? '').toString(),
+      content: resolvedContent,
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now()
           : (json['createdAt'] != null
@@ -136,10 +217,22 @@ class ChatMessage {
       status: parseStatus(json['status']),
       isMine: isMineMsg,
       attachmentUrl: attachment?.toString(),
+      replyToMessageId: replyId?.toString(),
+      replyToSenderName: replySender?.toString(),
+      replyToContent: replyText?.toString(),
     );
   }
 
   Map<String, dynamic> toJson() {
+    final effectiveContent = hasReply && !content.startsWith('[reply:')
+        ? ChatMessage.encodeContentWithReply(
+            replyToMessageId: replyToMessageId,
+            replyToSenderName: replyToSenderName,
+            replyToContent: replyToContent,
+            content: content,
+          )
+        : content;
+
     return {
       'id': id,
       'conversationId': conversationId,
@@ -147,12 +240,15 @@ class ChatMessage {
       'senderId': senderId,
       'receiverId': receiverId,
       'senderName': senderName,
-      'content': content,
-      'message': content,
+      'content': effectiveContent,
+      'message': effectiveContent,
       'timestamp': timestamp.toIso8601String(),
       'status': status.name,
       'isMine': isMine,
       if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
+      if (replyToMessageId != null) 'replyToMessageId': replyToMessageId,
+      if (replyToSenderName != null) 'replyToSenderName': replyToSenderName,
+      if (replyToContent != null) 'replyToContent': replyToContent,
     };
   }
 
@@ -167,6 +263,9 @@ class ChatMessage {
     MessageStatus? status,
     bool? isMine,
     String? attachmentUrl,
+    String? replyToMessageId,
+    String? replyToSenderName,
+    String? replyToContent,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -179,6 +278,9 @@ class ChatMessage {
       status: status ?? this.status,
       isMine: isMine ?? this.isMine,
       attachmentUrl: attachmentUrl ?? this.attachmentUrl,
+      replyToMessageId: replyToMessageId ?? this.replyToMessageId,
+      replyToSenderName: replyToSenderName ?? this.replyToSenderName,
+      replyToContent: replyToContent ?? this.replyToContent,
     );
   }
 
