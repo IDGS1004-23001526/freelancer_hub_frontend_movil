@@ -5,6 +5,7 @@ import '../../models/convocatoria.dart';
 import '../../services/profile_service.dart';
 import '../../theme/app_colors.dart';
 import 'proposal_submission_screen.dart';
+import 'proposals_received_screen.dart';
 
 /// HU-03 · Convocatoria abierta (Detalle de convocatoria antes de postularse)
 class ProjectDetailScreen extends StatefulWidget {
@@ -387,8 +388,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
               ),
 
               // Solo mostrar verificación y botón Postularme si NO es Cliente
-              if (!_isCheckingRole && !_isClient) ...[
-                const SizedBox(height: 20),
+              if (!_isCheckingRole && !_isClient) ...[                const SizedBox(height: 20),
 
                 // Banner de verificación
                 Container(
@@ -471,6 +471,55 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen> {
                 const Center(
                   child: Text(
                     'Envía una cotización por hitos y tu carta de presentación.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ),
+              ],
+
+              // Botón "Ver candidatos" solo para CLIENT
+              if (!_isCheckingRole && _isClient) ...[
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProposalsReceivedScreen(
+                            projectId: widget.convocatoria.id,
+                            projectTitle: widget.convocatoria.title,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.people_outline),
+                    label: const Text(
+                      'Ver candidatos',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Center(
+                  child: Text(
+                    'Revisa las propuestas recibidas y adjudica el contrato.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 11,

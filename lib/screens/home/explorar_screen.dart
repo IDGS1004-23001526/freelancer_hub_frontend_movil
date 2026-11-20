@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/advanced_filters_modal.dart';
 import '../chat/conversations_screen.dart';
 import '../profile/profile_screen.dart';
+import '../proposals/my_proposals_screen.dart';
 import '../proposals/project_detail_screen.dart';
 
 class ExplorarScreen extends StatefulWidget {
@@ -422,6 +423,13 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MyProposalsScreen()),
+            );
+            return;
+          }
           if (index == 2) {
             Navigator.push(
               context,

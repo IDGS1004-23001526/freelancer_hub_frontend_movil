@@ -13,6 +13,8 @@ import '../auth/onboarding_screen.dart';
 import '../main_navigation_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../payment/add_card_screen.dart';
+import '../proposals/client_candidates_screen.dart';
+import '../proposals/my_proposals_screen.dart';
 import 'edit_profile_screen.dart';
 import '../wallet/wallet_screen.dart';
 
@@ -482,6 +484,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle: 'Nombre, correo, teléfono y biografía',
                       onTap: _navigateToEditProfile,
                     ),
+                    const Divider(height: 1),
+                    if (isClient)
+                      ProfileMenuItem(
+                        icon: Icons.people_outline,
+                        title: 'Mis Candidatos',
+                        subtitle: 'Revisa las propuestas recibidas de freelancers',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const ClientCandidatesScreen()),
+                          );
+                        },
+                      )
+                    else
+                      ProfileMenuItem(
+                        icon: Icons.work_outline,
+                        title: 'Mis Postulaciones',
+                        subtitle: 'Revisa el estado de tus propuestas e hitos cotizados',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const MyProposalsScreen()),
+                          );
+                        },
+                      ),
+                    const Divider(height: 1),
                     ProfileMenuItem(
                       icon: Icons.account_balance_wallet_outlined,
                       title: 'Billetera Digital y Retiros (HU-14)',

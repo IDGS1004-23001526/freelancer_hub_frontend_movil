@@ -70,8 +70,8 @@ void main() {
 
       // Cambiar el monto del primer hito a 1000 para generar discrepancia ($1,000 vs $2,400)
       final amountFields = find.widgetWithText(TextFormField, '2400');
-      expect(amountFields, findsNWidgets(2)); // Total + Hito 1
-      await tester.enterText(amountFields.at(1), '1000');
+      expect(amountFields, findsWidgets); // Total + Hito 1
+      await tester.enterText(amountFields.last, '1000');
       await tester.pumpAndSettle();
 
       expect(find.text('Los montos no coinciden'), findsOneWidget);

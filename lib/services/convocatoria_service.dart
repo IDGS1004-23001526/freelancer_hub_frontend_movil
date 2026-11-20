@@ -7,6 +7,7 @@ import '../models/offline_action.dart';
 import 'api_client.dart';
 import 'connectivity_service.dart';
 import 'offline_queue_service.dart';
+import 'proposal_service.dart';
 
 typedef JsonMap = Map<String, dynamic>;
 
@@ -240,6 +241,12 @@ class ConvocatoriaService {
       );
       final code = response.statusCode ?? 0;
       if (code >= 200 && code < 300) {
+        await _saveSubmittedProposalLocally(
+          projectId: convocatoriaId,
+          coverLetter: coverLetter,
+          totalAmount: numericAmount,
+          estimatedDays: 15,
+        );
         return const ProposalResult(
           success: true,
           message: '¡Propuesta enviada con éxito al cliente!',
@@ -316,5 +323,53 @@ class ConvocatoriaService {
       'payload': payload,
     });
     await OfflineQueueService().enqueueAction(action);
+  }
+  Future<void> _saveSubmittedProposalLocally({
+    required String projectId,
+    required String coverLetter,
+    required double totalAmount,
+    required int estimatedDays,
+  }) async {
+    if (!Hive.isBoxOpen('convocatoriasBox')) return;
+    final box = Hive.box('convocatoriasBox');
+
+    // Buscar título y empresa reales en las convocatorias cargadas
+    final convocatorias = _readFromHive();
+    final match = convocatorias.where((c) => c.id == projectId).toList();
+    final projectTitle = match.isNotEmpty
+        ? match.first.title
+        : 'Convocatoria #$projectId';
+    final companyName = match.isNotEmpty
+        ? match.first.companyName
+        : 'Cliente Contratante';
+
+    final raw = box.get('mis_postulaciones', defaultValue: []);
+    final List<JsonMap> list = raw is List
+        ? raw.whereType().map((e) => JsonMap.from(e)).toList()
+        : <JsonMap>[];
+
+    list.removeWhere((e) => e['projectId']?.toString() == projectId);
+    list.insert(0, {
+      'id': 'prop-${DateTime.now().millisecondsSinceEpoch}',
+      'projectId': projectId,
+      'projectTitle': projectTitle,
+      'companyName': companyName,
+      'coverLetter': coverLetter,
+      'totalAmount': totalAmount,
+      'estimatedDays': estimatedDays,
+      'status': 'PENDIENTE',
+      'createdAt': DateTime.now().toIso8601String(),
+      'milestones': [
+        {
+          'title': 'Entrega de Hitos y Resultados',
+          'description': coverLetter,
+          'amount': totalAmount,
+          'estimatedDays': estimatedDays,
+          'order': 1,
+        },
+      ],
+    });
+    await box.put('mis_postulaciones', list);
+    ProposalService.notifyProposalChanged();
   }
 }

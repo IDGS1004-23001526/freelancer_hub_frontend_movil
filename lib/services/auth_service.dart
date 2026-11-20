@@ -104,6 +104,13 @@ class AuthService {
       );
     }
 
+    if (user.location.isNotEmpty && user.email.isNotEmpty) {
+      await _storage.write(
+        key: 'saved_location_${user.email.trim().toLowerCase()}',
+        value: user.location.trim(),
+      );
+    }
+
     await _storage.write(
       key: 'user_profile',
       value: jsonEncode({
@@ -261,6 +268,8 @@ class AuthService {
             .toLowerCase();
         final persistedAvatar =
         await _storage.read(key: 'saved_avatar_$normalizedEmail');
+        final persistedLocation =
+        await _storage.read(key: 'saved_location_$normalizedEmail');
 
         final effectiveAvatar =
         (rawProfile.avatarUrl != null && rawProfile.avatarUrl!.isNotEmpty)
@@ -272,13 +281,17 @@ class AuthService {
         final isSameUserCache =
             cached?.email.trim().toLowerCase() == normalizedEmail;
 
+        final effectiveLocation = rawProfile.location.isNotEmpty
+            ? rawProfile.location
+            : ((persistedLocation != null && persistedLocation.isNotEmpty)
+                ? persistedLocation
+                : (isSameUserCache && cached!.location.isNotEmpty
+                    ? cached.location
+                    : ''));
+
         final userProfile = rawProfile.copyWith(
           role: serverRole,
-          location: rawProfile.location.isNotEmpty
-              ? rawProfile.location
-              : (isSameUserCache && cached!.location.isNotEmpty
-              ? cached.location
-              : 'Ciudad de México, MX'),
+          location: effectiveLocation,
           bio: rawProfile.bio.isNotEmpty
               ? rawProfile.bio
               : (isSameUserCache && cached!.bio.isNotEmpty
@@ -391,11 +404,16 @@ class AuthService {
           return normalizeRole(rawRole);
         }
 
+        final persistedLocation =
+        await _storage.read(key: 'saved_location_${rawProfile.email.trim().toLowerCase()}');
+
         final userProfile = rawProfile.copyWith(
           role: _formatRoleLabel(rawProfile.role),
           location: rawProfile.location.isNotEmpty
               ? rawProfile.location
-              : (cached?.location ?? ''),
+              : ((persistedLocation != null && persistedLocation.isNotEmpty)
+                  ? persistedLocation
+                  : (cached?.location ?? '')),
           bio: rawProfile.bio.isNotEmpty ? rawProfile.bio : (cached?.bio ?? ''),
           avatarUrl: effectiveAvatar,
           skills: rawProfile.skills.isNotEmpty

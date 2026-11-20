@@ -8,6 +8,8 @@ import 'chat/conversations_screen.dart';
 import 'contracts/contracts_screen.dart';
 import 'convocatorias/explorar_screen.dart';
 import 'profile/profile_screen.dart';
+import 'proposals/client_candidates_screen.dart';
+import 'proposals/my_proposals_screen.dart';
 import 'wallet/wallet_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -22,14 +24,6 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   late int _currentIndex;
   String _resolvedRole = 'FREELANCER';
-
-  final List<Widget> _screens = const [
-    ExplorarScreen(),
-    ContractsScreen(),
-    WalletScreen(),
-    ConversationsScreen(),
-    ProfileScreen(),
-  ];
 
   @override
   void initState() {
@@ -57,13 +51,87 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     Widget buildScaffold(String role) {
       final isClient = AuthService.normalizeRole(role) == 'CLIENT';
 
+      final List<Widget> screens = isClient
+          ? const [
+              ExplorarScreen(),
+              ClientCandidatesScreen(),
+              ContractsScreen(),
+              ConversationsScreen(),
+              ProfileScreen(),
+            ]
+          : const [
+              ExplorarScreen(),
+              MyProposalsScreen(),
+              ContractsScreen(),
+              ConversationsScreen(),
+              ProfileScreen(),
+            ];
+
+      final List<BottomNavigationBarItem> navItems = isClient
+          ? const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.explore_outlined),
+                activeIcon: Icon(Icons.explore),
+                label: 'Proyectos',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.people_outline),
+                activeIcon: Icon(Icons.people),
+                label: 'Candidatos',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.work_outline),
+                activeIcon: Icon(Icons.work),
+                label: 'Mis Contratos',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.chat_bubble_outline),
+                activeIcon: Icon(Icons.chat_bubble),
+                label: 'Chat',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                activeIcon: Icon(Icons.person),
+                label: 'Perfil',
+              ),
+            ]
+          : const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.explore_outlined),
+                activeIcon: Icon(Icons.explore),
+                label: 'Explorar',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.work_outline),
+                activeIcon: Icon(Icons.work),
+                label: 'Postulaciones',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.assignment_outlined),
+                activeIcon: Icon(Icons.assignment),
+                label: 'Contratos',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.chat_bubble_outline),
+                activeIcon: Icon(Icons.chat_bubble),
+                label: 'Chat',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                activeIcon: Icon(Icons.person),
+                label: 'Perfil',
+              ),
+            ];
+
+      final safeIndex = _currentIndex < screens.length ? _currentIndex : 0;
+
       return Scaffold(
         body: IndexedStack(
-          index: _currentIndex,
-          children: _screens,
+          index: safeIndex,
+          children: screens,
         ),
         bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
+          currentIndex: safeIndex,
           onTap: (index) => setState(() => _currentIndex = index),
           selectedItemColor: AppColors.primary,
           unselectedItemColor: AppColors.textSecondary,
@@ -71,33 +139,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           type: BottomNavigationBarType.fixed,
           selectedFontSize: 11,
           unselectedFontSize: 11,
-          items: [
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.explore_outlined),
-              activeIcon: const Icon(Icons.explore),
-              label: isClient ? 'Proyectos' : 'Explorar',
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.work_outline),
-              activeIcon: const Icon(Icons.work),
-              label: isClient ? 'Mis Contratos' : 'Contratos',
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.account_balance_wallet_outlined),
-              activeIcon: const Icon(Icons.account_balance_wallet),
-              label: isClient ? 'Escrow' : 'Billetera',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
-              label: 'Chat',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Perfil',
-            ),
-          ],
+          items: navItems,
         ),
       );
     }

@@ -10,7 +10,6 @@ import '../../widgets/custom_text_field.dart';
 import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/primary_button.dart';
 import '../main_navigation_screen.dart';
-import '../profile/profile_screen.dart';
 import 'onboarding_screen.dart';
 
 class LoginScreen extends StatefulWidget {

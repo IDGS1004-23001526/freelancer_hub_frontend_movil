@@ -3,20 +3,20 @@ class ApiConstants {
   static const String cloudBaseUrl = 'https://api.freelancerhub.org/api/v1';
 
   // Base URL para emulador Android de Android Studio (10.0.2.2 apunta al localhost del PC)
-  static const String emulatorBaseUrl = 'http://10.0.2.2:4000/api/v1';
+  static const String emulatorBaseUrl = 'http://api.freelancerhub.org/api/v1';
 
   // URL para dispositivos con adb reverse / navegador web / escritorio
-  static const String localBaseUrl = 'http://127.0.0.1:4000/api/v1';
+  static const String localBaseUrl = 'http://api.freelancerhub.org/api/v1';
 
   // IP real de tu tarjeta Wi-Fi actual (usada para dispositivos físicos en la misma red)
-  static const String wifiBaseUrl = 'http://192.168.100.9:4000/api/v1';
-  static const String wifiHotspotBaseUrl = 'http://192.168.137.50:4000/api/v1';
+  static const String wifiBaseUrl = 'http://api.freelancerhub.org/api/v1';
+  static const String wifiHotspotBaseUrl = 'http://api.freelancerhub.org/api/v1';
 
   // IP secundaria / Ethernet
-  static const String ethernetBaseUrl = 'http://10.174.71.174:4000/api/v1';
+  static const String ethernetBaseUrl = 'http://api.freelancerhub.org/api/v1';
 
   // IP del adaptador virtual / Ethernet (VirtualBox / Host-Only)
-  static const String virtualBaseUrl = 'http://192.168.56.1:4000/api/v1';
+  static const String virtualBaseUrl = 'http://api.freelancerhub.org/api/v1';
 
   // URL principal activa (Apuntando a Cloudflare)
   static const String baseUrl = cloudBaseUrl;

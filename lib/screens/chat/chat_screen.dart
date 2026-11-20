@@ -13,7 +13,6 @@ import '../../services/chat_socket_service.dart';
 import '../../services/firebase_notification_service.dart';
 import '../../services/notification_socket_service.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/chat_sticker_picker.dart';
 import '../../widgets/chat_gif_picker.dart';
 
 class ChatScreen extends StatefulWidget {

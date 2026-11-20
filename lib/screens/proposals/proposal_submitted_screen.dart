@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/convocatoria.dart';
 import '../../models/proposal.dart';
 import '../../theme/app_colors.dart';
+import 'my_proposals_screen.dart';
 
 class ProposalSubmittedScreen extends StatelessWidget {
   final Convocatoria convocatoria;
@@ -476,8 +477,10 @@ class ProposalSubmittedScreen extends StatelessWidget {
                 height: 48,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
-                  },
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MyProposalsScreen()),
+                    );                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.wine,
                     foregroundColor: Colors.white,

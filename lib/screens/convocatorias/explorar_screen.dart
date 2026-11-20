@@ -7,11 +7,14 @@ import '../../services/convocatoria_service.dart';
 import '../../services/firebase_notification_service.dart';
 import '../../services/notification_socket_service.dart';
 import '../../services/offline_queue_service.dart';
+import '../../services/proposal_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/convocatoria_card.dart';
 import '../../widgets/notification_permission_sheet.dart';
 import '../../widgets/offline_badge.dart';
 import '../notifications/notifications_screen.dart';
+import '../proposals/my_proposals_screen.dart';
+import '../proposals/project_detail_screen.dart';
 
 class ExplorarScreen extends StatefulWidget {
   const ExplorarScreen({super.key});
@@ -35,6 +38,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
 
   StreamSubscription<bool>? _connectivitySub;
   StreamSubscription<String>? _notificationSub;
+  StreamSubscription<void>? _proposalSub;
 
   final List<String> _skillsList = const [
     'Todos',
@@ -77,12 +81,20 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
         );
       }
     });
+
+    // Escuchar cambios en postulaciones para refrescar el estado 'isApplied' en vivo
+    _proposalSub = ProposalService.onProposalsChanged.listen((_) {
+      if (mounted) {
+        _loadConvocatorias(silent: true);
+      }
+    });
   }
 
   @override
   void dispose() {
     _connectivitySub?.cancel();
     _notificationSub?.cancel();
+    _proposalSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -94,9 +106,20 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
 
     final result = await _service.getConvocatorias();
 
+    // Consultar postulaciones para marcar las que ya fueron aplicadas
+    final myProposals = await ProposalService().getMyProposals();
+    final appliedIds = myProposals.map((p) => p.projectId).toSet();
+
+    final mappedConvocatorias = result.convocatorias.map((c) {
+      if (appliedIds.contains(c.id)) {
+        return c.copyWith(isApplied: true);
+      }
+      return c;
+    }).toList();
+
     if (mounted) {
       setState(() {
-        _allConvocatorias = result.convocatorias;
+        _allConvocatorias = mappedConvocatorias;
         _isOffline = result.isOffline;
         _isLoading = false;
       });
@@ -279,6 +302,22 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            key: const Key('explorar_my_proposals_button'),
+            tooltip: 'Mis Postulaciones',
+            icon: const Icon(
+              Icons.assignment_turned_in_outlined,
+              color: AppColors.primary,
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const MyProposalsScreen(),
+                ),
+              );
+            },
+          ),
           // Campana de notificaciones con contador reactivo en tiempo real
           StreamBuilder<int>(
             stream: NotificationSocketService.instance.unreadCountStream,
@@ -529,7 +568,14 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
               ..._filteredConvocatorias.map(
                 (c) => ConvocatoriaCard(
                   convocatoria: c,
-                  onApply: () => _openProposalDialog(c),
+                  onApply: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProjectDetailScreen(convocatoria: c),
+                      ),
+                    );
+                  },
                 ),
               ),
 

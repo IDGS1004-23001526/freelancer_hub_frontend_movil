@@ -238,8 +238,8 @@ class _ProposalSubmissionScreenState extends State<ProposalSubmissionScreen> {
     }
     for (int i = 0; i < _milestones.length; i++) {
       final m = _milestones[i];
-      if (m.titleController.text.trim().isEmpty) {
-        return 'El hito #${i + 1} necesita un título.';
+      if (m.titleController.text.trim().length < 5) {
+        return 'El hito #${i + 1} necesita un título (mínimo 5 caracteres).';
       }
       if (m.descriptionController.text.trim().isEmpty) {
         return 'El hito #${i + 1} necesita una descripción del entregable.';
@@ -254,8 +254,8 @@ class _ProposalSubmissionScreenState extends State<ProposalSubmissionScreen> {
     if (!_amountsMatch) {
       return 'La suma de los hitos debe coincidir exactamente con el precio total ofertado.';
     }
-    if (_coverLetterController.text.trim().length < 10) {
-      return 'Escribe una carta de presentación (mínimo 10 caracteres).';
+    if (_coverLetterController.text.trim().length < 20) {
+      return 'Escribe una carta de presentación (mínimo 20 caracteres).';
     }
     return null;
   }
@@ -282,6 +282,8 @@ class _ProposalSubmissionScreenState extends State<ProposalSubmissionScreen> {
 
     final request = ProposalRequest(
       projectId: widget.convocatoria.id,
+      projectTitle: widget.convocatoria.title,
+      companyName: widget.convocatoria.companyName,
       coverLetter: _coverLetterController.text.trim(),
       totalAmount: _totalOffered,
       estimatedDays: _estimatedDays,

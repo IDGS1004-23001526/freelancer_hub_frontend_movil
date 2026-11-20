@@ -185,7 +185,6 @@ class FirebaseNotificationService {
 
   void _handleFcmNotificationTap(Map<String, dynamic> data) {
     if (data.isEmpty) return;
-    final notif = MessageNotification.fromJson(data);
     _socketNotifications.handleIncomingNotification(data, forceAlert: true);
   }
 }
