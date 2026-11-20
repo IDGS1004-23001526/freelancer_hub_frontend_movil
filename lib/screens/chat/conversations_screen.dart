@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/chat_conversation.dart';
 import '../../models/chat_message.dart';
 import '../../services/chat_api_service.dart';
-import '../../services/notification_socket_service.dart';
+import '../../services/firebase_notification_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/avatar_image.dart';
 import 'chat_screen.dart';
@@ -38,7 +38,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
       _loadConversations();
     }
     _notificationSubscription =
-        NotificationSocketService.instance.onMessageNotification.listen((_) {
+        FirebaseNotificationService.instance.onMessageNotification.listen((_) {
       if (mounted && widget.initialConversations == null) {
         _loadConversations();
       }

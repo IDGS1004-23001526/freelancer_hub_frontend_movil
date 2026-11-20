@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 import '../config/api_constants.dart';
 import '../models/user_profile.dart';
 import 'api_client.dart';
+import 'firebase_notification_service.dart';
 import 'google_sign_in_service.dart';
-import 'notification_socket_service.dart';
 
 /// Resultado detallado de una operación de autenticación (Login / Registro).
 class AuthResult {
@@ -38,7 +38,7 @@ class AuthService {
 
   Future<void> saveToken(String token) async {
     await _storage.write(key: 'jwt_token', value: token);
-    unawaited(NotificationSocketService.instance.connectIfAuthenticated());
+    unawaited(FirebaseNotificationService.instance.syncFcmTokenWithBackend());
   }
 
   Future<String?> getToken() async {
@@ -117,7 +117,6 @@ class AuthService {
         // Ignorar errores de red al cerrar sesión localmente
       }
     }
-    NotificationSocketService.instance.disconnect();
     try {
       await GoogleSignInService.instance.signOut();
     } catch (_) {}

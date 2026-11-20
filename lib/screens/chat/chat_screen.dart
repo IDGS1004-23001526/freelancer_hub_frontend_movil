@@ -10,7 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/chat_api_service.dart';
 import '../../services/chat_message_queue.dart';
 import '../../services/chat_socket_service.dart';
-import '../../services/notification_socket_service.dart';
+import '../../services/firebase_notification_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/chat_sticker_picker.dart';
 import '../../widgets/chat_gif_picker.dart';
@@ -74,7 +74,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    NotificationSocketService.instance.activeConversationId = widget.conversationId;
+    FirebaseNotificationService.instance.activeConversationId = widget.conversationId;
     _socketService = widget.socketService ?? ChatSocketService();
     _currentUserId = widget.currentUserId ?? 'my_user_id';
     _currentUserName = widget.currentUserName ?? 'Yo';
@@ -457,7 +457,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // 5. Escuchar notificaciones de mensajes entrantes para recarga instantánea en emuladores
     _notificationSubscription =
-        NotificationSocketService.instance.onMessageNotification.listen((notif) {
+        FirebaseNotificationService.instance.onMessageNotification.listen((notif) {
       if (!mounted) return;
       if (notif.conversationId == widget.conversationId) {
         _syncLatestMessagesSilently();
@@ -795,8 +795,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    if (NotificationSocketService.instance.activeConversationId == widget.conversationId) {
-      NotificationSocketService.instance.activeConversationId = null;
+    if (FirebaseNotificationService.instance.activeConversationId == widget.conversationId) {
+      FirebaseNotificationService.instance.activeConversationId = null;
     }
     _softSyncTimer?.cancel();
     _messageSubscription?.cancel();
