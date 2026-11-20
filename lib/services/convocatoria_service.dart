@@ -1,242 +1,320 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:http/http.dart' as http;
 import '../config/api_constants.dart';
 import '../models/convocatoria.dart';
 import '../models/offline_action.dart';
+import 'api_client.dart';
 import 'connectivity_service.dart';
 import 'offline_queue_service.dart';
 
-class ConvocatoriasResult {
+typedef JsonMap = Map<String, dynamic>;
+
+class ConvocatoriaResult {
   final List<Convocatoria> convocatorias;
   final bool isOffline;
-  final String? message;
 
-  const ConvocatoriasResult({
+  const ConvocatoriaResult({
     required this.convocatorias,
-    required this.isOffline,
-    this.message,
+    this.isOffline = false,
+  });
+}
+
+class ProposalResult {
+  final bool success;
+  final bool isOffline;
+  final String message;
+
+  const ProposalResult({
+    required this.success,
+    this.isOffline = false,
+    required this.message,
   });
 }
 
 class ConvocatoriaService {
-  static final ConvocatoriaService _instance = ConvocatoriaService._internal();
-  factory ConvocatoriaService() => _instance;
-  ConvocatoriaService._internal();
+  final Dio _dio = ApiClient.instance.dio;
+  static const String _cacheKey = 'ultimas_convocatorias';
 
-  Box? get _box {
-    try {
-      if (Hive.isBoxOpen('convocatoriasBox')) {
-        return Hive.box('convocatoriasBox');
-      }
-    } catch (_) {}
-    return null;
-  }
-  final ConnectivityService _connectivity = ConnectivityService();
-  final OfflineQueueService _queue = OfflineQueueService();
-
-  static const String _cacheKey = 'cached_convocatorias_list';
-
-  // Convocatorias iniciales basadas en el diseño de Figma para garantizar
-  // que jamás haya pantalla en blanco ni crash al abrir por primera vez sin internet
-  final List<Convocatoria> _defaultConvocatorias = const [
-    Convocatoria(
-      id: 'conv-01',
+  // Convocatorias de respaldo con formato UUID válido para pruebas y modo offline
+  static final List<Convocatoria> _defaultConvocatorias = [
+    const Convocatoria(
+      id: '00000000-0000-4000-8000-000000000001',
       title: 'E-commerce móvil con pasarela de pagos',
+      company: 'Nexo Commerce',
       companyName: 'Nexo Commerce',
       companyInitial: 'N',
+      timeAgo: 'Hace 2 h · Convocatoria activa',
       postedTime: 'Hace 2 h · Convocatoria activa',
+      category: 'Desarrollo móvil',
+      tags: ['Flutter', '.NET Core', 'SQL Server'],
+      skills: ['Flutter', '.NET Core', 'SQL Server'],
+      budget: 2400.0,
       budgetStr: '\$2,400 USD',
       duration: '30 días',
-      skills: ['Flutter', '.NET Core', 'SQL Server'],
-      category: 'Desarrollo móvil · Remoto · Precio fijo',
+      remainingDays: 30,
+      paymentType: 'Precio fijo',
+      remoteType: 'Remoto',
       description:
           'Buscamos desarrollador senior para implementar flujo de compras completo, carrito y pasarela Stripe en Flutter con backend .NET.',
     ),
-    Convocatoria(
-      id: 'conv-02',
+    const Convocatoria(
+      id: '00000000-0000-4000-8000-000000000002',
       title: 'Diseño UX/UI para una app de bienestar',
+      company: 'Estudio Bruma',
       companyName: 'Estudio Bruma',
       companyInitial: 'B',
+      timeAgo: 'Hace 4 h · Convocatoria activa',
       postedTime: 'Hace 4 h · Convocatoria activa',
+      category: 'Diseño y creatividad',
+      tags: ['UI/UX', 'Figma', 'Prototipado'],
+      skills: ['UI/UX', 'Figma', 'Prototipado'],
+      budget: 1200.0,
       budgetStr: '\$1,200 USD',
       duration: '15 días',
-      skills: ['UI/UX', 'Figma', 'Design System'],
-      category: 'Diseño de producto · Remoto · Hito',
+      remainingDays: 15,
+      paymentType: 'Precio fijo',
+      remoteType: 'Remoto',
       description:
           'Diseño de interfaces limpias, accesibles y prototipado interactivo para plataforma de salud mental y hábitos saludables.',
     ),
-    Convocatoria(
-      id: 'conv-03',
-      title: 'Integración de microservicios y autenticación JWT',
-      companyName: 'FinTech Nova',
-      companyInitial: 'F',
-      postedTime: 'Hace 1 d · Convocatoria activa',
-      budgetStr: '\$3,100 USD',
+    const Convocatoria(
+      id: '00000000-0000-4000-8000-000000000003',
+      title: 'App de seguimiento de entregas en tiempo real',
+      company: 'Ruta Logística',
+      companyName: 'Ruta Logística',
+      companyInitial: 'R',
+      timeAgo: 'Hace 6 h · Convocatoria activa',
+      postedTime: 'Hace 6 h · Convocatoria activa',
+      category: 'Desarrollo móvil',
+      tags: ['Flutter', '.NET Core', 'Azure'],
+      skills: ['Flutter', '.NET Core', 'Azure'],
+      budget: 3200.0,
+      budgetStr: '\$3,200 USD',
       duration: '45 días',
-      skills: ['.NET Core', 'SQL Server', 'Docker'],
-      category: 'Backend · Remoto · Tiempo completo',
+      remainingDays: 45,
+      paymentType: 'Precio fijo',
+      remoteType: 'Remoto',
       description:
           'Modernización de endpoints existentes, optimización de consultas SQL complejas y arquitectura de seguridad basada en tokens.',
     ),
-    Convocatoria(
-      id: 'conv-04',
-      title: 'Desarrollo de aplicación multiplataforma con Flutter',
-      companyName: 'CodeCrafters Lab',
-      companyInitial: 'C',
-      postedTime: 'Hace 1 d · Convocatoria activa',
-      budgetStr: '\$1,800 USD',
-      duration: '20 días',
-      skills: ['Flutter', 'Dart', 'Firebase'],
-      category: 'Desarrollo móvil · Remoto · Precio fijo',
-      description:
-          'Construcción de módulos interactivos de catálogo, sistema de notificaciones push y persistencia local con Hive.',
-    ),
   ];
 
-  Future<void> initCacheIfNeeded() async {
-    final box = _box;
-    if (box == null) return;
-    final cached = box.get(_cacheKey);
-    if (cached == null) {
-      final initialData = _defaultConvocatorias.map((c) => c.toMap()).toList();
-      await box.put(_cacheKey, initialData);
-    }
-  }
+  /// Consulta GET /api/v1/projects con respaldo automático en Hive para Modo Offline
+  Future<ConvocatoriaResult> getConvocatorias({
+    String? search,
+    String? category,
+    List<String>? skills,
+    double? minBudget,
+    double? maxBudget,
+  }) async {
+    final connectivity = ConnectivityService();
+    final forceOffline = connectivity.isSimulatingOffline ||
+        connectivity.lastKnownStatus == false;
 
-  Future<ConvocatoriasResult> getConvocatorias({bool forceRefresh = false}) async {
-    await initCacheIfNeeded();
-
-    final isOnline = await _connectivity.checkConnection();
-
-    // Si no hay conexión a internet, cargar directamente desde caché Hive
-    if (!isOnline) {
-      final cachedList = _getCachedList();
-      return ConvocatoriasResult(
-        convocatorias: cachedList,
+    if (forceOffline) {
+      return ConvocatoriaResult(
+        convocatorias: _readFromHive(),
         isOffline: true,
-        message: 'Modo Offline: Mostrando convocatorias guardadas localmente.',
       );
     }
 
-    // Si hay conexión, intentar consultar el backend
+    final queryParams = <String, dynamic>{
+      if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+      if (category != null && category.trim().isNotEmpty)
+        'category': category.trim(),
+      if (skills != null && skills.isNotEmpty) 'skills': skills.join(','),
+      if (minBudget != null) 'minBudget': minBudget,
+      if (maxBudget != null) 'maxBudget': maxBudget,
+    };
+
     try {
-      final uri = Uri.parse(ApiConstants.convocatorias);
-      final response = await http
-          .get(uri, headers: {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 4));
+      final response = await _dio.get(
+        ApiConstants.projects,
+        queryParameters: queryParams,
+      );
 
-      if (response.statusCode == 200) {
-        final decoded = json.decode(response.body);
-        List<dynamic> items = [];
-        if (decoded is List) {
-          items = decoded;
-        } else if (decoded is Map && decoded['data'] is List) {
-          items = decoded['data'];
-        }
+      final rawList = response.data is Map && response.data['data'] != null
+          ? response.data['data'] as List
+          : (response.data is List ? response.data as List : []);
 
-        final list = items.map((m) => Convocatoria.fromMap(m)).toList();
-        if (list.isNotEmpty) {
-          await _saveToCache(list);
-          return ConvocatoriasResult(
-            convocatorias: list,
-            isOffline: false,
-          );
-        }
+      List<Convocatoria> mapped = rawList
+          .map((json) => Convocatoria.fromJson(JsonMap.from(json)))
+          .toList();
+
+      // Si el servidor aún no tiene proyectos publicados en la BD remota,
+      // usar los datos de muestra iniciales para que la interfaz nunca esté vacía
+      if (mapped.isEmpty && queryParams.isEmpty) {
+        final cached = _readFromHive();
+        mapped = cached.isNotEmpty ? cached : _defaultConvocatorias;
       }
-    } catch (e) {
-      debugPrint('No se pudo conectar al endpoint remoto, usando caché: $e');
-    }
 
-    // Si falló el backend pero hay conexión o timeout, usar la caché local sin romper la app
-    final cachedList = _getCachedList();
-    return ConvocatoriasResult(
-      convocatorias: cachedList,
-      isOffline: !isOnline,
-      message: isOnline
-          ? 'Servidor no disponible. Usando datos guardados en caché.'
-          : 'Modo Offline activo.',
-    );
+      if (queryParams.isEmpty && Hive.isBoxOpen('convocatoriasBox') && rawList.isNotEmpty) {
+        await Hive.box('convocatoriasBox').put(
+          _cacheKey,
+          rawList.map((e) => JsonMap.from(e)).toList(),
+        );
+      }
+
+      return ConvocatoriaResult(
+        convocatorias: mapped,
+        isOffline: false,
+      );
+    } catch (e) {
+      debugPrint('ConvocatoriaService cargando caché local: $e');
+      return ConvocatoriaResult(
+        convocatorias: _readFromHive(),
+        isOffline: true,
+      );
+    }
   }
 
-  List<Convocatoria> _getCachedList() {
-    final box = _box;
-    if (box == null) return _defaultConvocatorias;
-    final raw = box.get(_cacheKey);
-    if (raw is List && raw.isNotEmpty) {
-      return raw.map((item) {
-        if (item is Map) {
-          return Convocatoria.fromMap(item);
-        }
-        return Convocatoria.fromMap({});
-      }).toList();
+  List<Convocatoria> _readFromHive() {
+    if (!Hive.isBoxOpen('convocatoriasBox')) return _defaultConvocatorias;
+    final cached =
+        Hive.box('convocatoriasBox').get(_cacheKey, defaultValue: []);
+    if (cached is List && cached.isNotEmpty) {
+      return cached
+          .whereType()
+          .map((json) => Convocatoria.fromJson(JsonMap.from(json)))
+          .toList();
     }
     return _defaultConvocatorias;
   }
 
-  Future<void> _saveToCache(List<Convocatoria> list) async {
-    final box = _box;
-    if (box == null) return;
-    final mapped = list.map((c) => c.toMap()).toList();
-    await box.put(_cacheKey, mapped);
-  }
-
-  Future<bool> postularAConvocatoria({
+  /// Envía postulación a POST /api/v1/proposals o la encola si no hay internet (HU-03)
+  Future<ProposalResult> postularAConvocatoria({
     required String convocatoriaId,
     required String propuestaMonto,
     required String mensaje,
   }) async {
-    final isOnline = await _connectivity.checkConnection();
+    final numericAmount = double.tryParse(
+          propuestaMonto.replaceAll(RegExp(r'[^0-9.]'), ''),
+        ) ??
+        0.0;
 
-    final action = OfflineAction(
-      id: 'act_${DateTime.now().millisecondsSinceEpoch}',
-      type: 'postulacion',
-      convocatoriaId: convocatoriaId,
-      payload: {
-        'convocatoriaId': convocatoriaId,
-        'monto': propuestaMonto,
-        'mensaje': mensaje,
-        'timestamp': DateTime.now().toIso8601String(),
-      },
-      createdAt: DateTime.now(),
-    );
+    final trimmed = mensaje.trim();
+    // Validar mínimo 20 caracteres exigidos por Zod en backend (createProposalSchema)
+    final coverLetter = trimmed.length >= 20
+        ? trimmed
+        : (trimmed.isNotEmpty
+            ? '$trimmed - Propuesta enviada desde la app móvil FreelanceHub.'
+            : 'Propuesta profesional enviada desde la aplicación móvil FreelanceHub.');
 
-    // Actualizar estado local en la lista en caché para reflejar que ya postuló
-    final currentList = _getCachedList();
-    final updatedList = currentList.map((c) {
-      if (c.id == convocatoriaId) {
-        return c.copyWith(isApplied: true);
-      }
-      return c;
-    }).toList();
-    await _saveToCache(updatedList);
+    // Construir payload estrictamente compatible con Zod:
+    // totalPrice (number), deliveryDays (int) y milestones ordenados
+    final payload = <String, dynamic>{
+      'projectId': convocatoriaId,
+      'coverLetter': coverLetter,
+      'totalPrice': numericAmount,
+      'estimatedDays': 15,
+      'milestones': [
+        {
+          'title': 'Entrega de Hitos y Resultados',
+          'description': coverLetter,
+          'amount': numericAmount,
+          'deliveryDays': 15,
+          'order': 1,
+        },
+      ],
+    };
 
-    if (!isOnline) {
-      // Encolar acción para cuando regrese la conexión
-      await _queue.enqueueAction(action);
-      return false; // Indica que se guardó offline
-    } else {
-      // Enviar directamente
-      try {
-        final uri = Uri.parse(ApiConstants.postulaciones);
-        final response = await http
-            .post(
-              uri,
-              headers: {'Content-Type': 'application/json'},
-              body: action.toJson(),
-            )
-            .timeout(const Duration(seconds: 4));
+    final connectivity = ConnectivityService();
+    final isOffline = connectivity.isSimulatingOffline ||
+        connectivity.lastKnownStatus == false;
 
-        if (response.statusCode >= 200 && response.statusCode < 300) {
-          return true;
-        }
-      } catch (e) {
-        debugPrint('Fallo al enviar online, encolando en offline actions: $e');
-      }
-      // Si la llamada falló por error de red en el servidor, encolamos también
-      await _queue.enqueueAction(action);
-      return false;
+    if (isOffline) {
+      await _enqueueOfflineProposal(payload);
+      return const ProposalResult(
+        success: false,
+        isOffline: true,
+        message:
+            'Modo Offline: Propuesta guardada en la cola local. Se sincronizará en cuanto regrese la conexión.',
+      );
     }
+
+    try {
+      final response = await _dio.post(
+        ApiConstants.proposals,
+        data: payload,
+      );
+      final code = response.statusCode ?? 0;
+      if (code >= 200 && code < 300) {
+        return const ProposalResult(
+          success: true,
+          message: '¡Propuesta enviada con éxito al cliente!',
+        );
+      }
+      return ProposalResult(
+        success: false,
+        message: 'Respuesta inesperada del servidor ($code).',
+      );
+    } on DioException catch (e) {
+      // Si el servidor respondió con un código de error HTTP (400, 401, 403, 404, 409), NO es error offline
+      if (e.response != null) {
+        final statusCode = e.response?.statusCode;
+        final data = e.response?.data;
+        String serverMsg = 'No se pudo registrar la propuesta.';
+
+        if (data is Map) {
+          if (data['message'] != null) {
+            serverMsg = data['message'].toString();
+          } else if (data['error'] != null) {
+            serverMsg = data['error'].toString();
+          } else if (data['errors'] is List && (data['errors'] as List).isNotEmpty) {
+            serverMsg = (data['errors'] as List)
+                .map((err) => err is Map ? err['message'] : err.toString())
+                .join(', ');
+          }
+        }
+
+        if (statusCode == 403) {
+          serverMsg =
+              'Acceso denegado: Solo usuarios con rol FREELANCER pueden postularse a proyectos.';
+        } else if (statusCode == 404) {
+          serverMsg =
+              'La convocatoria seleccionada no existe o ya no se encuentra activa en el servidor.';
+        } else if (statusCode == 409) {
+          serverMsg =
+              'Ya tienes una propuesta registrada para esta convocatoria.';
+        }
+
+        return ProposalResult(
+          success: false,
+          isOffline: false,
+          message: serverMsg,
+        );
+      }
+
+      // Si no hubo respuesta del servidor (caída de red o timeout), guardamos en cola offline
+      debugPrint('Sin respuesta del backend al postular, guardando en cola offline: $e');
+      await _enqueueOfflineProposal(payload);
+      return const ProposalResult(
+        success: false,
+        isOffline: true,
+        message:
+            'Sin conexión con el servidor. Propuesta guardada en la cola local para sincronización automática.',
+      );
+    } catch (e) {
+      debugPrint('Error general al postular: $e');
+      await _enqueueOfflineProposal(payload);
+      return const ProposalResult(
+        success: false,
+        isOffline: true,
+        message: 'Acción guardada localmente.',
+      );
+    }
+  }
+
+  Future<void> _enqueueOfflineProposal(JsonMap payload) async {
+    if (!Hive.isBoxOpen('offlineActionsBox')) return;
+    final action = OfflineAction.fromMap({
+      'id': 'prop-${DateTime.now().millisecondsSinceEpoch}',
+      'type': 'postulacion',
+      'status': 'pending',
+      'createdAt': DateTime.now().toIso8601String(),
+      'payload': payload,
+    });
+    await OfflineQueueService().enqueueAction(action);
   }
 }

@@ -213,7 +213,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
                     final monto = '\$${montoController.text.trim()} USD';
                     final mensaje = mensajeController.text.trim();
 
-                    final sentOnline = await _service.postularAConvocatoria(
+                    final result = await _service.postularAConvocatoria(
                       convocatoriaId: c.id,
                       propuestaMonto: monto,
                       mensaje: mensaje,
@@ -222,25 +222,18 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
                     await _loadConvocatorias(silent: true);
 
                     if (!mounted) return;
-                    if (!sentOnline) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Modo Offline: Propuesta guardada en la cola local. Se sincronizará en cuanto regrese la conexión.',
-                          ),
-                          backgroundColor: Colors.deepOrange,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('¡Propuesta enviada con éxito al servidor!'),
-                          backgroundColor: Colors.green,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(result.message),
+                        backgroundColor: result.success
+                            ? Colors.green
+                            : (result.isOffline
+                                ? Colors.deepOrange
+                                : Colors.red.shade700),
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
                   },
                   child: Text(
                     'Enviar Postulación',

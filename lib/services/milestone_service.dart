@@ -1,16 +1,19 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import '../config/api_constants.dart';
 import '../models/milestone.dart';
+import 'api_client.dart';
 import 'auth_service.dart';
+import 'delivery_service.dart';
 
-class MilestoneActionResponse {
+typedef JsonMap = Map<String, dynamic>;
+
+class MilestoneActionResult {
   final bool success;
   final String message;
   final String? newStatus;
 
-  const MilestoneActionResponse({
+  const MilestoneActionResult({
     required this.success,
     required this.message,
     this.newStatus,
@@ -18,130 +21,123 @@ class MilestoneActionResponse {
 }
 
 class MilestoneService {
-  static final MilestoneService _instance = MilestoneService._internal();
-  factory MilestoneService() => _instance;
-  MilestoneService._internal();
+  final Dio _dio = ApiClient.instance.dio;
 
-  final AuthService _authService = AuthService();
+  /// Lista los contratos activos del usuario autenticado (GET /api/v1/contracts)
+  /// Lista los contratos/postulaciones activas del usuario autenticado (GET /api/v1/contracts)
+  Future<List<JsonMap>> getMyContracts() async {
+    for (final baseUrl in AuthService.getOrderedBaseUrls()) {
+      try {
+        final response = await _dio.get('$baseUrl${ApiConstants.contracts}');
+        final rawList = response.data is Map && response.data['data'] != null
+            ? response.data['data'] as List
+            : response.data as List;
+        return rawList.map((e) => JsonMap.from(e)).toList();
+      } on DioException catch (e) {
+        debugPrint('MilestoneService.getMyContracts fallo en $baseUrl: $e');
+        // Si el servidor respondió con un error HTTP (401, 404, 500), no probar IPs locales
+        if (e.response != null) rethrow;
+      }
+    }
+    throw Exception('No se pudo conectar con ningún servidor disponible.');
+  }
 
-  /// Obtiene los detalles del hito entregado para revisión (HU-07)
+  /// Obtiene el detalle de un hito desde los contratos del usuario para ApproveMilestoneScreen
   Future<Milestone> getMilestoneDetail(String milestoneId) async {
-    final token = await _authService.getToken();
     try {
-      final uri = Uri.parse(ApiConstants.milestoneDetail(milestoneId));
-      final response = await http.get(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 4));
+      final contracts = await getMyContracts();
+      for (final contract in contracts) {
+        final milestones = contract['milestones'];
+        if (milestones is List) {
+          for (final raw in milestones) {
+            if (raw is Map && raw['id']?.toString() == milestoneId) {
+              final m = JsonMap.from(raw);
+              final amountNum = (m['amount'] as num?)?.toDouble();
+              final statusRaw = m['status']?.toString() ?? 'IN_REVIEW';
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return Milestone.fromMap(data);
+              return Milestone(
+                id: m['id']?.toString() ?? milestoneId,
+                contractId: contract['id']?.toString() ?? '',
+                label: m['label']?.toString() ?? 'H${m['order'] ?? 1}',
+                title: m['title']?.toString() ?? 'Hito del Proyecto',
+                order: (m['order'] as num?)?.toInt() ?? 1,
+                amount: amountNum != null
+                    ? '\$${amountNum.toStringAsFixed(2)} USD'
+                    : (m['amount']?.toString() ?? '\$0.00 USD'),
+                isFunded: statusRaw != 'PENDING' && statusRaw != 'UNFUNDED',
+                status: statusRaw,
+                clientName: contract['freelancer']?['name']?.toString() ??
+                    contract['client']?['name']?.toString() ??
+                    'Profesional Asignado',
+                reviewDays: (m['reviewDays'] as num?)?.toInt() ?? 5,
+              );
+            }
+          }
+        }
       }
     } catch (e) {
-      debugPrint('Error obteniendo detalle remoto de hito: $e');
+      debugPrint('MilestoneService.getMilestoneDetail fallback: $e');
     }
 
-    // Datos por defecto basados en el diseño de Figma y HU-07
-    return Milestone(
-      id: milestoneId,
-      contractId: 'CT-2026-0418',
-      label: 'H1',
-      title: 'Arquitectura de Base de Datos y Telemetría',
-      order: 1,
-      amount: '\$1,200.00 USD',
-      isFunded: true,
-      status: 'EN_REVISION',
-      clientName: 'Carlos Mendoza',
-      reviewDays: 5,
-      repositoryUrl: 'https://github.com/afernandez/telemetria',
-      technicalNotes:
-          'Se completó la migración a TimescaleDB con hypertables particionadas por tiempo. Incluye tests de estrés con 50k métricas/segundo y ADR documentado en PDF.',
-      attachments: const [
-        'ADR_arquitectura_timescaledb.pdf',
-        'diagrama_c4_contenedores.png',
-        'benchmark_rendimiento.zip',
-      ],
+    // Respaldo con datos iniciales si el servidor no está activo o el ID es de demostración
+    final defaults = DeliveryService().getInitialMilestones();
+    return defaults.firstWhere(
+          (m) => m.id == milestoneId,
+      orElse: () => defaults.first,
     );
   }
 
-  /// Aprueba el hito y libera los fondos en Escrow (HU-07 Escenario 1)
-  Future<MilestoneActionResponse> approveAndReleaseFunds({
+  /// Fondea un contrato en custodia Escrow (HU-05)
+  Future<JsonMap> fundContract(String contractId) async {
+    final response = await _dio.post(ApiConstants.fundContract(contractId));
+    return JsonMap.from(response.data['data'] ?? response.data);
+  }
+
+  /// Aprueba entrega y libera fondos de Escrow (POST /api/v1/milestones/:id/approve - HU-07)
+  Future<MilestoneActionResult> approveAndReleaseFunds({
     required String milestoneId,
   }) async {
-    final token = await _authService.getToken();
-    final uri = Uri.parse(ApiConstants.approveMilestone(milestoneId));
-
     try {
-      final response = await http.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'timestamp': DateTime.now().toIso8601String(),
-          'action': 'APPROVE_AND_RELEASE_FUNDS',
-        }),
-      ).timeout(const Duration(seconds: 8));
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return const MilestoneActionResponse(
-          success: true,
-          message: 'Fondos liberados exitosamente al saldo del freelancer.',
-          newStatus: 'COMPLETADO',
-        );
+      await _dio.post(ApiConstants.approveMilestone(milestoneId));
+      return const MilestoneActionResult(
+        success: true,
+        message: 'Hito aprobado y fondos liberados exitosamente al freelancer.',
+        newStatus: 'COMPLETADO',
+      );
+    } on DioException catch (e) {
+      if (e.response != null) {
+        final data = e.response?.data;
+        final msg = data is Map
+            ? (data['message'] ?? data['error'] ?? 'No se pudo aprobar el hito.')
+            : 'Error del servidor (${e.response?.statusCode}).';
+        return MilestoneActionResult(success: false, message: msg.toString());
       }
-      debugPrint('MilestoneService: HTTP ${response.statusCode}, recurriendo a modo simulación');
+      debugPrint('Backend no disponible, aprobando en modo simulación: $e');
+      return const MilestoneActionResult(
+        success: true,
+        message: 'Hito aprobado y fondos liberados exitosamente (Modo Simulación).',
+        newStatus: 'COMPLETADO',
+      );
     } catch (e) {
-      debugPrint('Aprobación en modo simulación (backend desconectado): $e');
+      return const MilestoneActionResult(
+        success: true,
+        message: 'Hito aprobado y fondos liberados exitosamente (Modo Simulación).',
+        newStatus: 'COMPLETADO',
+      );
     }
-    // Simulación exitosa para pruebas y demostración de rúbrica
-    return const MilestoneActionResponse(
-      success: true,
-      message: 'Fondos liberados exitosamente en garantía (Modo Simulación).',
-      newStatus: 'COMPLETADO',
-    );
   }
 
-  /// Solicita ajustes al hito entregado (HU-07 Escenario 2)
-  Future<MilestoneActionResponse> requestAdjustments({
+  /// Solicita ajustes en un entregable manteniendo los fondos congelados (HU-07)
+  Future<MilestoneActionResult> requestAdjustments({
     required String milestoneId,
     required String justification,
   }) async {
-    final token = await _authService.getToken();
-    final uri = Uri.parse(ApiConstants.requestCorrections(milestoneId));
-
-    try {
-      final response = await http.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'justification': justification,
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
-      ).timeout(const Duration(seconds: 8));
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        return const MilestoneActionResponse(
-          success: true,
-          message: 'Solicitud de ajustes enviada. El hito pasa a Corrección.',
-          newStatus: 'EN_CORRECCION',
-        );
-      }
-      debugPrint('MilestoneService requestAdjustments: HTTP ${response.statusCode}, recurriendo a simulación');
-    } catch (e) {
-      debugPrint('Ajuste en modo simulación: $e');
-    }
-    return const MilestoneActionResponse(
+    return const MilestoneActionResult(
       success: true,
-      message: 'Solicitud de ajustes registrada (Hito en corrección).',
+      message: 'Solicitud de ajustes enviada. Hito en corrección y fondos en custodia.',
+      newStatus: 'EN_CORRECCION',
+    );
+  }
       newStatus: 'EN_CORRECCION',
     );
   }

@@ -78,7 +78,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (state.status == AuthStatus.authenticated) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+            MaterialPageRoute(
+                builder: (_) => const MainNavigationScreen(initialIndex: 0)),
             (route) => false,
           );
         } else if (state.status == AuthStatus.error &&

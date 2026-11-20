@@ -64,6 +64,8 @@ class AuthService {
     return await ApiClient.instance.refreshToken();
   }
 
+  Future<void> saveProfile(UserProfile user) => saveUserProfile(user);
+
   Future<void> saveUserProfile(UserProfile user) async {
     final cached = await getCachedUserProfile();
     final effectiveAvatar = (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
@@ -96,6 +98,8 @@ class AuthService {
       }),
     );
   }
+
+  Future<UserProfile?> getCachedProfile() => getCachedUserProfile();
 
   Future<UserProfile?> getCachedUserProfile() async {
     try {

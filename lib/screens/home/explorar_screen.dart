@@ -358,10 +358,12 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
                 children: [
                   Icon(Icons.bolt, size: 16, color: AppColors.primary),
                   SizedBox(width: 4),
-                  Text(
-                    'Toca una habilidad y descubre coincidencias al instante.',
-                    style:
-                        TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  Expanded(
+                    child: Text(
+                      'Toca una habilidad y descubre coincidencias al instante.',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),

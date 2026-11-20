@@ -1,167 +1,245 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import '../config/api_constants.dart';
 import '../models/user_profile.dart';
 import 'api_client.dart';
 import 'auth_service.dart';
 
+typedef JsonMap = Map<String, dynamic>;
+
 class ProfileService {
+  final Dio _dio = ApiClient.instance.dio;
   final AuthService _authService = AuthService();
-  final ApiClient _apiClient;
 
-  ProfileService({ApiClient? apiClient})
-      : _apiClient = apiClient ?? ApiClient.instance;
+  Future<Options> _authOptions() async {
+    final token = await _authService.getToken();
+    return Options(
+      sendTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 5),
+      headers: {
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      },
+    );
+  }
 
+  /// GET /api/v1/users/me/profile (con respaldo a /profile y /auth/me)
   Future<UserProfile?> fetchProfile() async {
-    final cached = await _authService.getCachedUserProfile();
-    try {
-      for (final base in AuthService.getOrderedBaseUrls()) {
+    final options = await _authOptions();
+    final cached = await _authService.getCachedProfile();
+
+    for (final base in AuthService.getOrderedBaseUrls()) {
+      for (final endpoint in [
+        ApiConstants.profile,
+        ApiConstants.legacyProfile,
+        ApiConstants.me,
+      ]) {
         try {
-          Response? response;
-          try {
-            response = await _apiClient.dio.get('$base/users/me/profile');
-          } catch (_) {
-            response = await _apiClient.dio.get('$base/auth/me');
-          }
-
-          if (response.statusCode == 200) {
+          final response = await _dio.get('$base$endpoint', options: options);
+          if (response.statusCode == 200 && response.data != null) {
             AuthService.activeBaseUrl = base;
-            final dynamic data = response.data;
-            final payload = data is Map<String, dynamic>
-                ? (data['data'] ?? data['user'] ?? data['profile'] ?? data)
-                : <String, dynamic>{};
+            final raw = response.data;
+            final JsonMap payload = raw is Map && raw['data'] is Map
+                ? JsonMap.from(raw['data'])
+                : (raw is Map ? JsonMap.from(raw) : <String, dynamic>{});
 
-            if (payload is Map<String, dynamic>) {
-              final remoteProfile = UserProfile.fromJson(payload);
-              final effectiveAvatar = (remoteProfile.avatarUrl != null &&
-                      remoteProfile.avatarUrl!.isNotEmpty)
-                  ? remoteProfile.avatarUrl
-                  : cached?.avatarUrl;
-
-              final merged = cached != null
-                  ? remoteProfile.copyWith(
-                      firstName: remoteProfile.firstName.isNotEmpty
-                          ? remoteProfile.firstName
-                          : cached.firstName,
-                      lastName: remoteProfile.lastName.isNotEmpty
-                          ? remoteProfile.lastName
-                          : cached.lastName,
-                      fullName: remoteProfile.fullName.isNotEmpty
-                          ? remoteProfile.fullName
-                          : cached.fullName,
-                      role: cached.role.isNotEmpty
-                          ? cached.role
-                          : remoteProfile.role,
-                      location: remoteProfile.location.isNotEmpty
-                          ? remoteProfile.location
-                          : cached.location,
-                      bio: remoteProfile.bio.isNotEmpty
-                          ? remoteProfile.bio
-                          : cached.bio,
-                      phone: remoteProfile.phone.isNotEmpty
-                          ? remoteProfile.phone
-                          : cached.phone,
-                      avatarUrl: effectiveAvatar,
-                      skills: remoteProfile.skills.isNotEmpty
-                          ? remoteProfile.skills
-                          : cached.skills,
-                    )
-                  : remoteProfile.copyWith(avatarUrl: effectiveAvatar);
-
-              await _authService.saveUserProfile(merged);
-              return merged;
-            }
+            final user = _mapToUserProfile(payload, cachedLocation: cached?.location);
+            // Preservar en almacenamiento local seguro
+            await _authService.saveProfile(user);
+            return user;
           }
-        } catch (_) {
-          continue;
+        } catch (e) {
+          debugPrint('ProfileService.fetchProfile fallo en $base$endpoint: $e');
         }
       }
-      return cached;
-    } catch (_) {
-      return cached;
     }
+    return cached;
   }
 
-  Future<bool> updateProfile(UserProfile user) async {
-    await _authService.saveUserProfile(user);
-    try {
-      for (final base in AuthService.getOrderedBaseUrls()) {
-        try {
-          Response? response;
-          try {
-            response = await _apiClient.dio.put(
-              '$base/users/me/profile',
-              data: user.toJson(),
-            );
-          } on DioException catch (dioErr) {
-            if (dioErr.response?.statusCode == 404) {
-              response = await _apiClient.dio.put(
-                '$base/profile/professional-info',
-                data: user.toJson(),
-              );
-            } else {
-              rethrow;
-            }
-          }
+  UserProfile _mapToUserProfile(JsonMap payload, {String? cachedLocation}) {
+    final firstName = (payload['firstName'] ?? payload['first_name'] ?? '')
+        .toString()
+        .trim();
+    final lastName = (payload['lastName'] ?? payload['last_name'] ?? '')
+        .toString()
+        .trim();
 
+    final combinedFromParts = '$firstName $lastName'.trim();
+    final rawName = combinedFromParts.isNotEmpty
+        ? combinedFromParts
+        : (payload['fullName'] ?? payload['name'] ?? '').toString().trim();
+
+    final nameParts = rawName.split(' ');
+    final resolvedFirst = firstName.isNotEmpty
+        ? firstName
+        : (nameParts.isNotEmpty ? nameParts.first : '');
+    final resolvedLast = lastName.isNotEmpty
+        ? lastName
+        : (nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '');
+
+    final rawSkills = payload['skills'];
+    final parsedSkills = rawSkills is List
+        ? rawSkills
+        .map((s) => s is Map ? (s['name'] ?? '').toString() : s.toString())
+        .where((s) => s.isNotEmpty)
+        .toList()
+        : <String>[];
+
+    final serverLocation = (payload['location'] ?? payload['city'] ?? payload['country'])?.toString().trim() ?? '';
+    final resolvedLocation = serverLocation.isNotEmpty
+        ? serverLocation
+        : (cachedLocation != null && cachedLocation.isNotEmpty ? cachedLocation : '');
+
+    return UserProfile(
+      id: (payload['id'] ?? payload['userId'] ?? '').toString(),
+      firstName: resolvedFirst,
+      lastName: resolvedLast,
+      fullName: rawName,
+      email: payload['email']?.toString() ?? '',
+      role: payload['role']?.toString() ?? 'FREELANCER',
+      location: resolvedLocation,
+      bio: payload['bio']?.toString() ?? '',
+      phone: payload['phone']?.toString() ?? '',
+      avatarUrl: payload['avatarUrl']?.toString(),
+      skills: parsedSkills,
+    );
+  }
+
+  /// PUT /api/v1/users/me/profile
+  Future<bool> updateProfile(UserProfile profile) async {
+    // 1. Guardar de inmediato en almacenamiento seguro local para que la ubicación nunca se pierda
+    await _authService.saveProfile(profile);
+
+    final options = await _authOptions();
+    for (final base in AuthService.getOrderedBaseUrls()) {
+      try {
+        final response = await _dio.put(
+          '$base${ApiConstants.profile}',
+          options: options,
+          data: {
+            'firstName': profile.firstName,
+            'lastName': profile.lastName,
+            'phone': profile.phone,
+            'location': profile.location,
+            'bio': profile.bio,
+            'skills': profile.skills,
+            if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty)
+              'avatarUrl': profile.avatarUrl,
+          },
+        );
+        final code = response.statusCode ?? 0;
+        if (code >= 200 && code < 300) {
           AuthService.activeBaseUrl = base;
-          return response.statusCode == 200 ||
-              response.statusCode == 201 ||
-              response.statusCode == 204 ||
-              true;
-        } catch (_) {
-          continue;
+          return true;
         }
+      } catch (e) {
+        debugPrint('ProfileService.updateProfile error en $base: $e');
       }
-      return true;
-    } catch (_) {
-      return true;
     }
+    // Retornamos true porque ya quedó persistido localmente con seguridad
+    return true;
   }
 
+  /// POST /api/v1/users/me/avatar (multer field: 'avatar')
   Future<String?> uploadAvatar(File imageFile) async {
-    try {
-      for (final base in AuthService.getOrderedBaseUrls()) {
-        try {
-          final formData = FormData.fromMap({
-            'avatar': await MultipartFile.fromFile(
-              imageFile.path,
-              filename: imageFile.path.split(Platform.pathSeparator).last,
-            ),
-          });
+    final token = await _authService.getToken();
+    for (final base in AuthService.getOrderedBaseUrls()) {
+      try {
+        final formData = FormData.fromMap({
+          'avatar': await MultipartFile.fromFile(
+            imageFile.path,
+            filename: imageFile.path.split(Platform.pathSeparator).last,
+          ),
+        });
 
-          final response = await _apiClient.dio.post(
-            '$base/users/me/avatar',
-            data: formData,
-          );
+        final response = await _dio.post(
+          '$base${ApiConstants.uploadAvatar}',
+          data: formData,
+          options: Options(
+            contentType: 'multipart/form-data',
+            headers: {
+              if (token != null && token.isNotEmpty)
+                'Authorization': 'Bearer $token',
+            },
+          ),
+        );
 
-          if (response.statusCode == 200 || response.statusCode == 201) {
-            AuthService.activeBaseUrl = base;
-            final dynamic data = response.data;
-            final payload =
-                data is Map<String, dynamic> ? data['data'] : null;
-            final newUrl = (payload is Map<String, dynamic>
-                    ? payload['avatarUrl']
-                    : null) ??
-                (data is Map<String, dynamic>
-                    ? (data['avatarUrl'] ?? data['url'] ?? data['avatar'])
-                    : null);
-
-            if (newUrl != null && newUrl is String) {
-              final cached = await _authService.getCachedUserProfile();
-              if (cached != null) {
-                await _authService
-                    .saveUserProfile(cached.copyWith(avatarUrl: newUrl));
-              }
-              return newUrl;
-            }
-          }
-        } catch (_) {
-          continue;
-        }
+        final payload = response.data is Map && response.data['data'] != null
+            ? response.data['data']
+            : response.data;
+        return payload['avatarUrl']?.toString();
+      } catch (e) {
+        debugPrint('ProfileService.uploadAvatar error en $base: $e');
       }
-      return null;
-    } catch (_) {
-      return null;
     }
+    return null;
+  }
+
+  /// GET /api/v1/users/me/skills
+  Future<List<String>> getUserSkills() async {
+    final options = await _authOptions();
+    for (final base in AuthService.getOrderedBaseUrls()) {
+      try {
+        final response = await _dio.get(
+          '$base${ApiConstants.userSkills}',
+          options: options,
+        );
+        if (response.statusCode == 200) {
+          final raw = response.data is Map && response.data['data'] != null
+              ? response.data['data']
+              : response.data;
+          if (raw is List) {
+            return raw
+                .map((s) => s is Map ? (s['name'] ?? '').toString() : s.toString())
+                .where((s) => s.isNotEmpty)
+                .toList();
+          }
+        }
+      } catch (e) {
+        debugPrint('ProfileService.getUserSkills error en $base: $e');
+      }
+    }
+    return [];
+  }
+
+  /// POST /api/v1/users/me/skills
+  Future<bool> addSkill(String skillName) async {
+    final options = await _authOptions();
+    for (final base in AuthService.getOrderedBaseUrls()) {
+      try {
+        final response = await _dio.post(
+          '$base${ApiConstants.userSkills}',
+          options: options,
+          data: {'name': skillName.trim()},
+        );
+        if ((response.statusCode ?? 0) >= 200 &&
+            (response.statusCode ?? 0) < 300) {
+          return true;
+        }
+      } catch (e) {
+        debugPrint('ProfileService.addSkill error en $base: $e');
+      }
+    }
+    return false;
+  }
+
+  /// DELETE /api/v1/users/me/skills/:identifier
+  Future<bool> removeSkill(String identifier) async {
+    final options = await _authOptions();
+    for (final base in AuthService.getOrderedBaseUrls()) {
+      try {
+        final response = await _dio.delete(
+          '$base${ApiConstants.deleteUserSkill(identifier)}',
+          options: options,
+        );
+        if ((response.statusCode ?? 0) >= 200 &&
+            (response.statusCode ?? 0) < 300) {
+          return true;
+        }
+      } catch (e) {
+        debugPrint('ProfileService.removeSkill error en $base: $e');
+      }
+    }
+    return false;
   }
 }
