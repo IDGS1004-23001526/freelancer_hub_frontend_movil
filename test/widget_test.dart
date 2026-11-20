@@ -20,6 +20,10 @@ class FakeAuthService extends AuthService {
     required String email,
     required String password,
     required String role,
+    String? location,
+    String? phone,
+    String? bio,
+    List<String>? skills,
   }) async {
     lastRegisteredName = name;
     lastRegisteredEmail = email;

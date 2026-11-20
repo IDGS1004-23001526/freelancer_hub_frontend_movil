@@ -15,6 +15,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthLoginSubmitted>(_onLoginSubmitted);
     on<AuthSessionChecked>(_onSessionChecked);
     on<AuthLogoutRequested>(_onLogoutRequested);
+    on<AuthProfileUpdated>((event, emit) {
+      emit(state.copyWith(user: event.user));
+    });
   }
 
   void _onRoleSelected(
@@ -50,6 +53,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       email: event.email,
       password: event.password,
       role: roleToRegister,
+      location: event.location,
+      phone: event.phone,
+      bio: event.bio,
+      skills: event.skills,
     );
 
     if (result.success) {

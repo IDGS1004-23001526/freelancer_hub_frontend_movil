@@ -222,18 +222,18 @@ class AuthService {
               ? rawProfile.location
               : (cached?.location.isNotEmpty == true
                   ? cached!.location
-                  : 'Ciudad de México, MX'),
+                  : ''),
           bio: rawProfile.bio.isNotEmpty
               ? rawProfile.bio
               : (cached?.bio.isNotEmpty == true
                   ? cached!.bio
-                  : 'Especialista verificado en Freelancer Hub.'),
+                  : ''),
           avatarUrl: effectiveAvatar,
           skills: rawProfile.skills.isNotEmpty
               ? rawProfile.skills
               : (cached?.skills.isNotEmpty == true
                   ? cached!.skills
-                  : const ['Flutter', 'Dart', 'UI/UX']),
+                  : const []),
         );
 
         await saveUserProfile(userProfile);
@@ -266,6 +266,10 @@ class AuthService {
     required String email,
     required String password,
     required String role,
+    String? location,
+    String? phone,
+    String? bio,
+    List<String>? skills,
   }) async {
     try {
       final normalizedRole = role.trim().toUpperCase();
@@ -308,13 +312,10 @@ class AuthService {
           email: userMap['email']?.toString() ?? email.trim(),
           role: _formatRoleLabel(
               userMap['role']?.toString() ?? normalizedRole),
-          location: 'Ciudad de México, MX',
-          bio: normalizedRole == 'CLIENT'
-              ? 'Cliente verificado en búsqueda de talento especializado.'
-              : 'Especialista independiente disponible para proyectos.',
-          skills: normalizedRole == 'CLIENT'
-              ? ['Gestión de Proyectos', 'Producto']
-              : ['Flutter', 'Dart', 'UI/UX'],
+          location: location?.trim() ?? '',
+          bio: bio?.trim() ?? '',
+          phone: phone?.trim() ?? '',
+          skills: skills ?? const [],
         );
 
         if (token != null && token.isNotEmpty) {
