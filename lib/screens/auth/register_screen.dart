@@ -14,6 +14,7 @@ import '../../widgets/google_sign_in_button.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/role_selection_card.dart';
 import '../profile/profile_screen.dart';
+import 'onboarding_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -184,6 +185,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  void _handleBack(BuildContext context) {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    } else if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        (route) => false,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final existingBloc = context.read<AuthBloc?>();
@@ -226,21 +241,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
       builder: (context, state) {
         final isClient = state.selectedRole.toUpperCase() == 'CLIENT';
 
-        return Scaffold(
-          backgroundColor: AppColors.background,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-              onPressed: () {
-                if (_currentStep > 0) {
-                  setState(() => _currentStep--);
-                } else {
-                  Navigator.pop(context);
-                }
-              },
-            ),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            _handleBack(context);
+          },
+          child: Scaffold(
+            backgroundColor: AppColors.background,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                onPressed: () => _handleBack(context),
+              ),
             title: Text(
               _currentStep == 0
                   ? 'Crear Cuenta'
@@ -271,8 +286,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
             ),
           ),
-        );
-      },
+        ),
+      );
+    },
     );
   }
 
