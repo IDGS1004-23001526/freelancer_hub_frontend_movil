@@ -4,10 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/convocatoria.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/convocatoria_service.dart';
+import '../../services/notification_socket_service.dart';
 import '../../services/offline_queue_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/convocatoria_card.dart';
 import '../../widgets/offline_badge.dart';
+import '../notifications/notifications_screen.dart';
 
 class ExplorarScreen extends StatefulWidget {
   const ExplorarScreen({super.key});
@@ -272,6 +274,56 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
           ],
         ),
         actions: [
+          // Campana de notificaciones con contador reactivo en tiempo real
+          StreamBuilder<int>(
+            stream: NotificationSocketService.instance.unreadCountStream,
+            initialData: NotificationSocketService.instance.unreadCount,
+            builder: (context, snapshot) {
+              final unread = snapshot.data ?? 0;
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    key: const Key('explorar_notifications_button'),
+                    tooltip: 'Sección de Notificaciones',
+                    icon: const Icon(Icons.notifications_none_rounded,
+                        color: AppColors.textPrimary),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificationsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  if (unread > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints:
+                            const BoxConstraints(minWidth: 16, minHeight: 16),
+                        child: Text(
+                          unread > 9 ? '9+' : '$unread',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           // Botón para simular / toggle offline para evaluación rápida
           IconButton(
             tooltip: _connectivity.isSimulatingOffline

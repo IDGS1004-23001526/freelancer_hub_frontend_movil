@@ -11,6 +11,7 @@ import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
 import '../main_navigation_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
 
@@ -449,10 +450,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       subtitle: 'Descarga tus facturas fiscales CFDI',
                     ),
                     const Divider(height: 1),
-                    const ProfileMenuItem(
-                      icon: Icons.tune,
-                      title: 'Preferencias de notificaciones',
-                      subtitle: 'Alertas de postulaciones y mensajes',
+                    ProfileMenuItem(
+                      icon: Icons.notifications_outlined,
+                      title: 'Sección de notificaciones',
+                      subtitle: 'Alertas de postulaciones, contratos y mensajes',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const NotificationsScreen()),
+                        );
+                      },
                     ),
                     const Divider(height: 1),
                     const ProfileMenuItem(

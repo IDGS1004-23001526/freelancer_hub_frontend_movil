@@ -11,6 +11,7 @@ import '../../services/chat_api_service.dart';
 import '../../services/chat_message_queue.dart';
 import '../../services/chat_socket_service.dart';
 import '../../services/firebase_notification_service.dart';
+import '../../services/notification_socket_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/chat_sticker_picker.dart';
 import '../../widgets/chat_gif_picker.dart';
@@ -394,9 +395,17 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       _scrollToBottom();
 
-      // Notificar lectura inmediata al contraparte
+      // Notificar lectura inmediata al contraparte y registrar en historial de notificaciones
       if (!message.isMine) {
         _socketService.markAsRead(message.id, widget.conversationId);
+        NotificationSocketService.instance.recordMessageFromChat(
+          conversationId: widget.conversationId,
+          senderId: message.senderId,
+          senderName: widget.peerName,
+          content: message.content,
+          senderAvatarUrl: widget.peerAvatarUrl,
+          attachmentUrl: message.attachmentUrl,
+        );
       }
     });
 

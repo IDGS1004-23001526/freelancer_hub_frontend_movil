@@ -11,7 +11,9 @@ import 'firebase_options.dart';
 import 'screens/auth/onboarding_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'services/firebase_notification_service.dart';
+import 'services/notification_socket_service.dart';
 import 'theme/app_colors.dart';
+import 'widgets/message_notification_overlay.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -22,6 +24,10 @@ Future<void> main() async {
   await Hive.initFlutter();
   await Hive.openBox('convocatoriasBox');
   await Hive.openBox('offlineActionsBox');
+  await Hive.openBox('notificationsBox');
+
+  // Inicializar motor local y socket de notificaciones
+  await NotificationSocketService.instance.initializeLocalNotifications();
 
   // Inicializar Firebase Messaging para notificaciones push oficiales
   try {
@@ -54,7 +60,10 @@ class MyApp extends StatelessWidget {
       child: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state.status == AuthStatus.authenticated) {
+            NotificationSocketService.instance.connectIfAuthenticated();
             FirebaseNotificationService.instance.syncFcmTokenWithBackend();
+          } else if (state.status == AuthStatus.unauthenticated) {
+            NotificationSocketService.instance.disconnect();
           }
         },
         child: MaterialApp(
@@ -64,6 +73,12 @@ class MyApp extends StatelessWidget {
           theme: ThemeData(
             useMaterial3: true,
           ),
+          builder: (context, child) {
+            return MessageNotificationOverlay(
+              navigatorKey: appNavigatorKey,
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
           home: const AuthGate(),
         ),
       ),

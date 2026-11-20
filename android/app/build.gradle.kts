@@ -38,6 +38,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    androidResources {
+        noCompress += listOf("bin", "Z", "tflite")
+    }
 }
 
 kotlin {
