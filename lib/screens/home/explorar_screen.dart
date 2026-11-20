@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/advanced_filters_modal.dart';
 import '../chat/conversations_screen.dart';
 import '../profile/profile_screen.dart';
+import '../proposals/project_detail_screen.dart';
 
 class ExplorarScreen extends StatefulWidget {
   const ExplorarScreen({super.key});
@@ -441,8 +442,17 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
   }
 
   Widget _buildConvocatoriaCard(Convocatoria item) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProjectDetailScreen(convocatoria: item),
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -556,6 +566,7 @@ class _ExplorarScreenState extends State<ExplorarScreen> {
                 const TextStyle(fontSize: 11, color: AppColors.textSecondary),
           ),
         ],
+      ),
       ),
     );
   }

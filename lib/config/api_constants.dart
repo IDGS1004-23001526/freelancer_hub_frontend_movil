@@ -43,6 +43,9 @@ class ApiConstants {
   static const String profile = '$baseUrl/users/me/profile';
   static const String updateAvatar = '$baseUrl/users/me/avatar';
 
+  // Endpoints de propuestas (HU-03)
+  static const String proposals = '$baseUrl/proposals';
+
   // Obtiene la URL del servidor WebSocket/Socket.io eliminando el prefijo de API REST
   static String getSocketUrl([String? explicitBaseUrl]) {
     final base = explicitBaseUrl ?? baseUrl;
