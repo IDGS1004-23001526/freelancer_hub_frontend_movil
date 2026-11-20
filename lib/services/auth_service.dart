@@ -37,6 +37,15 @@ class AuthService {
   })  : _storage = storage ?? const FlutterSecureStorage(),
         _httpClient = httpClient ?? http.Client();
 
+  /// Normaliza cualquier variante de rol a 'CLIENT' o 'FREELANCER'.
+  static String normalizeRole(String? rawRole) {
+    final upper = (rawRole ?? '').trim().toUpperCase();
+    if (upper == 'CLIENT' || upper.contains('CLIENT')) {
+      return 'CLIENT';
+    }
+    return 'FREELANCER';
+  }
+
   Future<void> saveToken(String token) async {
     await _storage.write(key: 'jwt_token', value: token);
     unawaited(NotificationSocketService.instance.connectIfAuthenticated());
@@ -59,6 +68,15 @@ class AuthService {
     }
   }
 
+  /// Devuelve el rol guardado en sesión ('CLIENT' o 'FREELANCER') si existe.
+  Future<String?> getSavedRole() async {
+    final cached = await getCachedUserProfile();
+    if (cached != null && cached.role.isNotEmpty) {
+      return normalizeRole(cached.role);
+    }
+    return null;
+  }
+
   /// Renueva el token de acceso invocando el flujo de refresh token
   Future<String?> refreshToken() async {
     return await ApiClient.instance.refreshToken();
@@ -68,11 +86,18 @@ class AuthService {
 
   Future<void> saveUserProfile(UserProfile user) async {
     final cached = await getCachedUserProfile();
-    final effectiveAvatar = (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+    final effectiveAvatar =
+    (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
         ? user.avatarUrl
         : cached?.avatarUrl;
 
-    if (effectiveAvatar != null && effectiveAvatar.isNotEmpty && user.email.isNotEmpty) {
+    final normalizedRole = normalizeRole(
+      user.role.isNotEmpty ? user.role : cached?.role,
+    );
+
+    if (effectiveAvatar != null &&
+        effectiveAvatar.isNotEmpty &&
+        user.email.isNotEmpty) {
       await _storage.write(
         key: 'saved_avatar_${user.email.trim().toLowerCase()}',
         value: effectiveAvatar,
@@ -88,9 +113,10 @@ class AuthService {
         'fullName': user.fullName,
         'name': user.fullName,
         'email': user.email,
-        'role': user.role,
+        'role': normalizedRole,
         'phone': user.phone.isNotEmpty ? user.phone : (cached?.phone ?? ''),
-        'location': user.location.isNotEmpty ? user.location : (cached?.location ?? ''),
+        'location':
+        user.location.isNotEmpty ? user.location : (cached?.location ?? ''),
         'bio': user.bio.isNotEmpty ? user.bio : (cached?.bio ?? ''),
         'avatarUrl': effectiveAvatar,
         'avatar': effectiveAvatar,
@@ -102,10 +128,12 @@ class AuthService {
   Future<UserProfile?> getCachedProfile() => getCachedUserProfile();
 
   Future<UserProfile?> getCachedUserProfile() async {
+    final raw = await _storage.read(key: 'user_profile');
+    if (raw == null || raw.isEmpty) return null;
     try {
-      final raw = await _storage.read(key: 'user_profile');
-      if (raw == null || raw.isEmpty) return null;
-      return UserProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      final parsed =
+      UserProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      return parsed.copyWith(role: normalizeRole(parsed.role));
     } catch (_) {
       return null;
     }
@@ -172,9 +200,9 @@ class AuthService {
 
   /// Extrae el mensaje de error más descriptivo devuelto por el backend.
   String _extractErrorMessage(
-    Map<String, dynamic> decoded,
-    String defaultMessage,
-  ) {
+      Map<String, dynamic> decoded,
+      String defaultMessage,
+      ) {
     final detalles = decoded['detalles'];
     if (detalles is List && detalles.isNotEmpty) {
       final first = detalles.first;
@@ -197,7 +225,7 @@ class AuthService {
       );
 
       final Map<String, dynamic> decoded =
-          response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      response.body.isNotEmpty ? jsonDecode(response.body) : {};
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final payload = decoded['data'] is Map<String, dynamic>
@@ -222,32 +250,50 @@ class AuthService {
         final rawProfile = UserProfile.fromJson(userMap);
         final cached = await getCachedUserProfile();
 
-        // Recuperar avatar persistido de la cuenta si el servidor o caché no lo traen
-        final normalizedEmail = (rawProfile.email.isNotEmpty ? rawProfile.email : email).trim().toLowerCase();
-        final persistedAvatar = await _storage.read(key: 'saved_avatar_$normalizedEmail');
+        // Asegurar rol puro ('CLIENT' o 'FREELANCER') desde la respuesta real del backend
+        final serverRole = normalizeRole(
+          userMap['role']?.toString() ?? rawProfile.role,
+        );
 
-        final effectiveAvatar = (rawProfile.avatarUrl != null && rawProfile.avatarUrl!.isNotEmpty)
+        final normalizedEmail =
+        (rawProfile.email.isNotEmpty ? rawProfile.email : email)
+            .trim()
+            .toLowerCase();
+        final persistedAvatar =
+        await _storage.read(key: 'saved_avatar_$normalizedEmail');
+
+        final effectiveAvatar =
+        (rawProfile.avatarUrl != null && rawProfile.avatarUrl!.isNotEmpty)
             ? rawProfile.avatarUrl
-            : (cached?.avatarUrl ?? persistedAvatar);
+            : (cached?.email.trim().toLowerCase() == normalizedEmail
+            ? (cached?.avatarUrl ?? persistedAvatar)
+            : persistedAvatar);
+
+        final isSameUserCache =
+            cached?.email.trim().toLowerCase() == normalizedEmail;
 
         final userProfile = rawProfile.copyWith(
-          role: _formatRoleLabel(rawProfile.role),
+          role: serverRole,
           location: rawProfile.location.isNotEmpty
               ? rawProfile.location
-              : (cached?.location.isNotEmpty == true
-                  ? cached!.location
-                  : ''),
+              : (isSameUserCache && cached!.location.isNotEmpty
+              ? cached.location
+              : 'Ciudad de México, MX'),
           bio: rawProfile.bio.isNotEmpty
               ? rawProfile.bio
-              : (cached?.bio.isNotEmpty == true
-                  ? cached!.bio
-                  : ''),
+              : (isSameUserCache && cached!.bio.isNotEmpty
+              ? cached.bio
+              : (serverRole == 'CLIENT'
+              ? 'Cliente contratante verificado en Freelancer Hub.'
+              : 'Especialista verificado en Freelancer Hub.')),
           avatarUrl: effectiveAvatar,
           skills: rawProfile.skills.isNotEmpty
               ? rawProfile.skills
-              : (cached?.skills.isNotEmpty == true
-                  ? cached!.skills
-                  : const []),
+              : (isSameUserCache && cached!.skills.isNotEmpty
+              ? cached.skills
+              : (serverRole == 'CLIENT'
+              ? const ['Gestión de Proyectos', 'Producto']
+              : const ['Flutter', 'Dart', 'UI/UX'])),
         );
 
         await saveUserProfile(userProfile);
@@ -341,6 +387,10 @@ class AuthService {
             ? rawProfile.avatarUrl
             : (cached?.avatarUrl ?? persistedAvatar);
 
+        String _formatRoleLabel(String rawRole) {
+          return normalizeRole(rawRole);
+        }
+
         final userProfile = rawProfile.copyWith(
           role: _formatRoleLabel(rawProfile.role),
           location: rawProfile.location.isNotEmpty
@@ -391,7 +441,7 @@ class AuthService {
     List<String>? skills,
   }) async {
     try {
-      final normalizedRole = role.trim().toUpperCase();
+      final normalizedRole = normalizeRole(role);
       final response = await _postToEndpoint(
         endpointPath: '/auth/register',
         body: {
@@ -403,7 +453,7 @@ class AuthService {
       );
 
       final Map<String, dynamic> decoded =
-          response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      response.body.isNotEmpty ? jsonDecode(response.body) : {};
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final payload = decoded['data'] is Map<String, dynamic>
@@ -411,8 +461,8 @@ class AuthService {
             : decoded;
 
         String? token = (payload['accessToken'] ??
-                payload['token'] ??
-                payload['jwt'])
+            payload['token'] ??
+            payload['jwt'])
             ?.toString();
         final refreshToken = payload['refreshToken']?.toString();
 
@@ -424,17 +474,23 @@ class AuthService {
             ? payload['user'] as Map<String, dynamic>
             : payload;
 
+        final resolvedRole = normalizeRole(
+          userMap['role']?.toString() ?? normalizedRole,
+        );
+
         UserProfile userProfile = UserProfile(
           id: userMap['id']?.toString() ?? '',
           fullName: (userMap['fullName'] ?? userMap['name'])?.toString() ??
               name.trim(),
           email: userMap['email']?.toString() ?? email.trim(),
-          role: _formatRoleLabel(
-              userMap['role']?.toString() ?? normalizedRole),
-          location: location?.trim() ?? '',
-          bio: bio?.trim() ?? '',
-          phone: phone?.trim() ?? '',
-          skills: skills ?? const [],
+          role: resolvedRole,
+          location: 'Ciudad de México, MX',
+          bio: resolvedRole == 'CLIENT'
+              ? 'Cliente verificado en búsqueda de talento especializado.'
+              : 'Especialista independiente disponible para proyectos.',
+          skills: resolvedRole == 'CLIENT'
+              ? ['Gestión de Proyectos', 'Producto']
+              : ['Flutter', 'Dart', 'UI/UX'],
         );
 
         if (token != null && token.isNotEmpty) {
@@ -444,6 +500,9 @@ class AuthService {
           final loginResult = await loginWithResult(email.trim(), password);
           if (loginResult.success && loginResult.token != null) {
             token = loginResult.token;
+            if (loginResult.user != null) {
+              userProfile = loginResult.user!;
+            }
           }
         }
 
@@ -466,19 +525,9 @@ class AuthService {
       return const AuthResult(
         success: false,
         message:
-            'No se pudo conectar con el servidor para completar el registro.',
+        'No se pudo conectar con el servidor para completar el registro.',
       );
     }
-  }
-
-  String _formatRoleLabel(String rawRole) {
-    final upper = rawRole.toUpperCase();
-    if (upper == 'CLIENT') {
-      return 'Cliente Contratante (CLIENT)';
-    } else if (upper == 'FREELANCER') {
-      return 'Especialista Freelancer (FREELANCER)';
-    }
-    return rawRole;
   }
 
   Future<bool> login(String email, String password) async {

@@ -23,26 +23,38 @@ class MilestoneActionResult {
 class MilestoneService {
   final Dio _dio = ApiClient.instance.dio;
 
-  /// Lista los contratos activos del usuario autenticado (GET /api/v1/contracts)
   /// Lista los contratos/postulaciones activas del usuario autenticado (GET /api/v1/contracts)
   Future<List<JsonMap>> getMyContracts() async {
-    for (final baseUrl in AuthService.getOrderedBaseUrls()) {
+    final token = await AuthService().getToken();
+    final options = Options(
+      sendTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 5),
+      headers: {
+        if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    for (final base in AuthService.getOrderedBaseUrls()) {
       try {
-        final response = await _dio.get('$baseUrl${ApiConstants.contracts}');
-        final rawList = response.data is Map && response.data['data'] != null
-            ? response.data['data'] as List
-            : response.data as List;
-        return rawList.map((e) => JsonMap.from(e)).toList();
-      } on DioException catch (e) {
-        debugPrint('MilestoneService.getMyContracts fallo en $baseUrl: $e');
-        // Si el servidor respondió con un error HTTP (401, 404, 500), no probar IPs locales
-        if (e.response != null) rethrow;
+        final response = await _dio.get(
+          '$base${ApiConstants.contracts}',
+          options: options,
+        );
+        if (response.statusCode == 200) {
+          AuthService.activeBaseUrl = base;
+          final rawList = response.data is Map && response.data['data'] != null
+              ? response.data['data'] as List
+              : response.data as List;
+          return rawList.map((e) => JsonMap.from(e)).toList();
+        }
+      } catch (e) {
+        debugPrint('MilestoneService.getMyContracts fallo en $base: $e');
       }
     }
-    throw Exception('No se pudo conectar con ningún servidor disponible.');
+    return [];
   }
 
-  /// Obtiene el detalle de un hito desde los contratos del usuario para ApproveMilestoneScreen
+  /// Obtiene el detalle de un hito desde los contratos del usuario
   Future<Milestone> getMilestoneDetail(String milestoneId) async {
     try {
       final contracts = await getMyContracts();
@@ -79,7 +91,6 @@ class MilestoneService {
       debugPrint('MilestoneService.getMilestoneDetail fallback: $e');
     }
 
-    // Respaldo con datos iniciales si el servidor no está activo o el ID es de demostración
     final defaults = DeliveryService().getInitialMilestones();
     return defaults.firstWhere(
           (m) => m.id == milestoneId,
@@ -87,9 +98,25 @@ class MilestoneService {
     );
   }
 
-  /// Fondea un contrato en custodia Escrow (HU-05)
+  /// Fondea un contrato en custodia Escrow (HU-05 - Rol CLIENT)
   Future<JsonMap> fundContract(String contractId) async {
     final response = await _dio.post(ApiConstants.fundContract(contractId));
+    return JsonMap.from(response.data['data'] ?? response.data);
+  }
+
+  /// Entrega evidencias de un hito fondeado para revisión (HU-06 - Rol FREELANCER)
+  Future<JsonMap> deliverMilestone({
+    required String milestoneId,
+    required String notes,
+    List<String> evidenceUrls = const [],
+  }) async {
+    final response = await _dio.post(
+      ApiConstants.deliverMilestone(milestoneId),
+      data: {
+        'notes': notes,
+        'evidenceUrls': evidenceUrls,
+      },
+    );
     return JsonMap.from(response.data['data'] ?? response.data);
   }
 
@@ -101,7 +128,7 @@ class MilestoneService {
       await _dio.post(ApiConstants.approveMilestone(milestoneId));
       return const MilestoneActionResult(
         success: true,
-        message: 'Hito aprobado y fondos liberados exitosamente al freelancer.',
+        message: 'Hito aprobado y fondos liberados al freelancer.',
         newStatus: 'COMPLETADO',
       );
     } on DioException catch (e) {
@@ -115,13 +142,13 @@ class MilestoneService {
       debugPrint('Backend no disponible, aprobando en modo simulación: $e');
       return const MilestoneActionResult(
         success: true,
-        message: 'Hito aprobado y fondos liberados exitosamente (Modo Simulación).',
+        message: 'Hito aprobado y fondos liberados (Modo Simulación).',
         newStatus: 'COMPLETADO',
       );
     } catch (e) {
       return const MilestoneActionResult(
         success: true,
-        message: 'Hito aprobado y fondos liberados exitosamente (Modo Simulación).',
+        message: 'Hito aprobado y fondos liberados (Modo Simulación).',
         newStatus: 'COMPLETADO',
       );
     }
@@ -134,10 +161,7 @@ class MilestoneService {
   }) async {
     return const MilestoneActionResult(
       success: true,
-      message: 'Solicitud de ajustes enviada. Hito en corrección y fondos en custodia.',
-      newStatus: 'EN_CORRECCION',
-    );
-  }
+      message: 'Solicitud de ajustes enviada. Los fondos permanecen en custodia.',
       newStatus: 'EN_CORRECCION',
     );
   }

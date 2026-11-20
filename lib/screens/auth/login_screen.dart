@@ -76,11 +76,18 @@ class _LoginScreenState extends State<LoginScreen> {
       listenWhen: (previous, current) => previous.status != current.status,
       listener: (context, state) {
         if (state.status == AuthStatus.authenticated) {
+          // Si existe un AuthBloc global por encima, sincronizar la sesión recién iniciada
+          try {
+            final rootBloc = BlocProvider.of<AuthBloc>(context, listen: false);
+            rootBloc.add(const AuthSessionChecked());
+          } catch (_) {}
+
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
-                builder: (_) => const MainNavigationScreen(initialIndex: 0)),
-            (route) => false,
+              builder: (_) => const MainNavigationScreen(initialIndex: 0),
+            ),
+                (route) => false,
           );
         } else if (state.status == AuthStatus.error &&
             state.errorMessage != null) {

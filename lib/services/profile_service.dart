@@ -23,10 +23,11 @@ class ProfileService {
     );
   }
 
-  /// GET /api/v1/users/me/profile (con respaldo a /profile y /auth/me)
-  Future<UserProfile?> fetchProfile() async {
+  /// GET /api/v1/users/me/profile (conservando el rol real de la sesión)
+  Future<UserProfile?> fetchProfile({String? fallbackRole}) async {
     final options = await _authOptions();
-    final cached = await _authService.getCachedProfile();
+    final cachedProfile = await _authService.getCachedUserProfile();
+    final sessionRole = fallbackRole ?? cachedProfile?.role;
 
     for (final base in AuthService.getOrderedBaseUrls()) {
       for (final endpoint in [
@@ -43,20 +44,27 @@ class ProfileService {
                 ? JsonMap.from(raw['data'])
                 : (raw is Map ? JsonMap.from(raw) : <String, dynamic>{});
 
-            final user = _mapToUserProfile(payload, cachedLocation: cached?.location);
-            // Preservar en almacenamiento local seguro
-            await _authService.saveProfile(user);
-            return user;
+            final mapped = _mapToUserProfile(
+              payload,
+              fallbackRole: sessionRole,
+              cachedProfile: cachedProfile,
+            );
+            await _authService.saveUserProfile(mapped);
+            return mapped;
           }
         } catch (e) {
           debugPrint('ProfileService.fetchProfile fallo en $base$endpoint: $e');
         }
       }
     }
-    return cached;
+    return cachedProfile;
   }
 
-  UserProfile _mapToUserProfile(JsonMap payload, {String? cachedLocation}) {
+  UserProfile _mapToUserProfile(
+      JsonMap payload, {
+        String? fallbackRole,
+        UserProfile? cachedProfile,
+      }) {
     final firstName = (payload['firstName'] ?? payload['first_name'] ?? '')
         .toString()
         .trim();
@@ -67,7 +75,9 @@ class ProfileService {
     final combinedFromParts = '$firstName $lastName'.trim();
     final rawName = combinedFromParts.isNotEmpty
         ? combinedFromParts
-        : (payload['fullName'] ?? payload['name'] ?? '').toString().trim();
+        : (payload['fullName'] ?? payload['name'] ?? cachedProfile?.fullName ?? '')
+        .toString()
+        .trim();
 
     final nameParts = rawName.split(' ');
     final resolvedFirst = firstName.isNotEmpty
@@ -83,32 +93,42 @@ class ProfileService {
         .map((s) => s is Map ? (s['name'] ?? '').toString() : s.toString())
         .where((s) => s.isNotEmpty)
         .toList()
-        : <String>[];
+        : (cachedProfile?.skills ?? <String>[]);
 
-    final serverLocation = (payload['location'] ?? payload['city'] ?? payload['country'])?.toString().trim() ?? '';
-    final resolvedLocation = serverLocation.isNotEmpty
-        ? serverLocation
-        : (cachedLocation != null && cachedLocation.isNotEmpty ? cachedLocation : '');
+    final rawRole = payload['role']?.toString().trim();
+    final resolvedRole = (rawRole != null && rawRole.isNotEmpty)
+        ? AuthService.normalizeRole(rawRole)
+        : AuthService.normalizeRole(fallbackRole);
 
     return UserProfile(
-      id: (payload['id'] ?? payload['userId'] ?? '').toString(),
+      id: (payload['id'] ?? payload['userId'] ?? cachedProfile?.id ?? '').toString(),
       firstName: resolvedFirst,
       lastName: resolvedLast,
       fullName: rawName,
-      email: payload['email']?.toString() ?? '',
-      role: payload['role']?.toString() ?? 'FREELANCER',
-      location: resolvedLocation,
-      bio: payload['bio']?.toString() ?? '',
-      phone: payload['phone']?.toString() ?? '',
-      avatarUrl: payload['avatarUrl']?.toString(),
+      email: (payload['email']?.toString().isNotEmpty == true)
+          ? payload['email'].toString()
+          : (cachedProfile?.email ?? ''),
+      role: resolvedRole,
+      location: (payload['location']?.toString().isNotEmpty == true)
+          ? payload['location'].toString()
+          : (cachedProfile?.location ?? ''),
+      bio: (payload['bio']?.toString().isNotEmpty == true)
+          ? payload['bio'].toString()
+          : (cachedProfile?.bio ?? ''),
+      phone: (payload['phone']?.toString().isNotEmpty == true)
+          ? payload['phone'].toString()
+          : (cachedProfile?.phone ?? ''),
+      avatarUrl: payload['avatarUrl']?.toString() ?? cachedProfile?.avatarUrl,
       skills: parsedSkills,
     );
   }
 
   /// PUT /api/v1/users/me/profile
   Future<bool> updateProfile(UserProfile profile) async {
-    // 1. Guardar de inmediato en almacenamiento seguro local para que la ubicación nunca se pierda
-    await _authService.saveProfile(profile);
+    final safeProfile = profile.copyWith(
+      role: AuthService.normalizeRole(profile.role),
+    );
+    await _authService.saveUserProfile(safeProfile);
 
     final options = await _authOptions();
     for (final base in AuthService.getOrderedBaseUrls()) {
@@ -117,14 +137,15 @@ class ProfileService {
           '$base${ApiConstants.profile}',
           options: options,
           data: {
-            'firstName': profile.firstName,
-            'lastName': profile.lastName,
-            'phone': profile.phone,
-            'location': profile.location,
-            'bio': profile.bio,
-            'skills': profile.skills,
-            if (profile.avatarUrl != null && profile.avatarUrl!.isNotEmpty)
-              'avatarUrl': profile.avatarUrl,
+            'firstName': safeProfile.firstName,
+            'lastName': safeProfile.lastName,
+            'phone': safeProfile.phone,
+            'location': safeProfile.location,
+            'bio': safeProfile.bio,
+            'skills': safeProfile.skills,
+            if (safeProfile.avatarUrl != null &&
+                safeProfile.avatarUrl!.isNotEmpty)
+              'avatarUrl': safeProfile.avatarUrl,
           },
         );
         final code = response.statusCode ?? 0;
@@ -136,7 +157,6 @@ class ProfileService {
         debugPrint('ProfileService.updateProfile error en $base: $e');
       }
     }
-    // Retornamos true porque ya quedó persistido localmente con seguridad
     return true;
   }
 
@@ -172,74 +192,6 @@ class ProfileService {
         debugPrint('ProfileService.uploadAvatar error en $base: $e');
       }
     }
-    return null;
-  }
-
-  /// GET /api/v1/users/me/skills
-  Future<List<String>> getUserSkills() async {
-    final options = await _authOptions();
-    for (final base in AuthService.getOrderedBaseUrls()) {
-      try {
-        final response = await _dio.get(
-          '$base${ApiConstants.userSkills}',
-          options: options,
-        );
-        if (response.statusCode == 200) {
-          final raw = response.data is Map && response.data['data'] != null
-              ? response.data['data']
-              : response.data;
-          if (raw is List) {
-            return raw
-                .map((s) => s is Map ? (s['name'] ?? '').toString() : s.toString())
-                .where((s) => s.isNotEmpty)
-                .toList();
-          }
-        }
-      } catch (e) {
-        debugPrint('ProfileService.getUserSkills error en $base: $e');
-      }
-    }
-    return [];
-  }
-
-  /// POST /api/v1/users/me/skills
-  Future<bool> addSkill(String skillName) async {
-    final options = await _authOptions();
-    for (final base in AuthService.getOrderedBaseUrls()) {
-      try {
-        final response = await _dio.post(
-          '$base${ApiConstants.userSkills}',
-          options: options,
-          data: {'name': skillName.trim()},
-        );
-        if ((response.statusCode ?? 0) >= 200 &&
-            (response.statusCode ?? 0) < 300) {
-          return true;
-        }
-      } catch (e) {
-        debugPrint('ProfileService.addSkill error en $base: $e');
-      }
-    }
-    return false;
-  }
-
-  /// DELETE /api/v1/users/me/skills/:identifier
-  Future<bool> removeSkill(String identifier) async {
-    final options = await _authOptions();
-    for (final base in AuthService.getOrderedBaseUrls()) {
-      try {
-        final response = await _dio.delete(
-          '$base${ApiConstants.deleteUserSkill(identifier)}',
-          options: options,
-        );
-        if ((response.statusCode ?? 0) >= 200 &&
-            (response.statusCode ?? 0) < 300) {
-          return true;
-        }
-      } catch (e) {
-        debugPrint('ProfileService.removeSkill error en $base: $e');
-      }
-    }
-    return false;
+    return imageFile.path;
   }
 }
