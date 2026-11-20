@@ -1,3 +1,5 @@
+typedef JsonMap = Map<String, dynamic>;
+
 class WalletTransaction {
   final String id;
   final String title;
@@ -21,7 +23,7 @@ class WalletTransaction {
     this.clabeAccount,
   });
 
-  Map<String, dynamic> toMap() {
+  JsonMap toMap() {
     return {
       'id': id,
       'title': title,
@@ -35,7 +37,32 @@ class WalletTransaction {
     };
   }
 
-  factory WalletTransaction.fromMap(Map<String, dynamic> map) {
+  factory WalletTransaction.fromJson(JsonMap json) {
+    final gross = (json['grossAmount'] ?? json['amount'] ?? 0) as num;
+    final fee = (json['platformFee'] ?? json['fee'] ?? 0) as num;
+    final net = (json['netAmount'] ?? (gross - fee)) as num;
+
+    return WalletTransaction(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ??
+          json['description']?.toString() ??
+          'Pago de Hito',
+      milestoneLabel: json['milestoneLabel']?.toString() ??
+          json['type']?.toString() ??
+          'Hito',
+      grossAmount: gross.toDouble(),
+      platformFee: fee.toDouble(),
+      netAmount: net.toDouble(),
+      date: DateTime.tryParse(
+          (json['date'] ?? json['createdAt'])?.toString() ?? '') ??
+          DateTime.now(),
+      status: json['status']?.toString().toLowerCase() ?? 'completed',
+      clabeAccount:
+      json['clabeAccount']?.toString() ?? json['clabe']?.toString(),
+    );
+  }
+
+  factory WalletTransaction.fromMap(JsonMap map) {
     return WalletTransaction(
       id: map['id']?.toString() ?? '',
       title: map['title']?.toString() ?? 'Pago de Hito',
@@ -77,14 +104,33 @@ class WalletData {
     );
   }
 
-  factory WalletData.fromMap(Map<String, dynamic> map) {
+  factory WalletData.fromJson(JsonMap json) {
+    final rawTransactions = json['transactions'] ?? json['movements'] ?? [];
+
+    return WalletData(
+      availableBalance:
+      ((json['availableBalance'] ?? json['balance'] ?? 0) as num)
+          .toDouble(),
+      escrowBalance: ((json['escrowBalance'] ??
+          json['pendingBalance'] ??
+          json['heldBalance'] ??
+          0) as num)
+          .toDouble(),
+      currency: json['currency']?.toString() ?? 'USD',
+      transactions: (rawTransactions as List)
+          .map((item) => WalletTransaction.fromJson(JsonMap.from(item)))
+          .toList(),
+    );
+  }
+
+  factory WalletData.fromMap(JsonMap map) {
     return WalletData(
       availableBalance: (map['availableBalance'] as num?)?.toDouble() ?? 0.0,
       escrowBalance: (map['escrowBalance'] as num?)?.toDouble() ?? 0.0,
       currency: map['currency']?.toString() ?? 'USD',
       transactions: (map['transactions'] as List<dynamic>?)
-              ?.map((t) => WalletTransaction.fromMap(t as Map<String, dynamic>))
-              .toList() ??
+          ?.map((t) => WalletTransaction.fromMap(t as JsonMap))
+          .toList() ??
           [],
     );
   }

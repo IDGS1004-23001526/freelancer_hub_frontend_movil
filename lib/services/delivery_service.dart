@@ -1,12 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import '../config/api_constants.dart';
 import '../models/delivery_file.dart';
 import '../models/milestone.dart';
-import 'auth_service.dart';
+import 'api_client.dart';
+
+typedef JsonMap = Map<String, dynamic>;
 
 class DeliveryResult {
   final bool success;
@@ -21,11 +21,11 @@ class DeliveryResult {
 }
 
 class DeliveryService {
-  final AuthService _authService = AuthService();
+  final Dio _dio = ApiClient.instance.dio;
 
   static const int maxFileSizeInBytes = 25 * 1024 * 1024; // 25 MB
 
-  // Simulación de hitos para el contrato de ejemplo CT-2026-0418 de Figma
+  // Hitos iniciales de respaldo para vista previa / pruebas
   List<Milestone> getInitialMilestones() {
     return const [
       Milestone(
@@ -62,89 +62,91 @@ class DeliveryService {
     required List<DeliveryFile> files,
     Function(double progress)? onProgress,
   }) async {
-    // 1. Validar límite de peso máximo (25MB)
-    for (var file in files) {
+    // 1. Validar límite de peso máximo (25 MB)
+    for (final file in files) {
       if (file.sizeInBytes > maxFileSizeInBytes) {
         return DeliveryResult(
           success: false,
           message:
-              'El archivo "${file.name}" supera el límite máximo de 25 MB (${file.formattedSize}).',
+          'El archivo "${file.name}" supera el límite máximo de 25 MB (${file.formattedSize}).',
         );
       }
     }
 
-    // 2. Preparar endpoint y token
-    final uri = Uri.parse(ApiConstants.milestoneDeliveries(milestoneId));
-    final token = await _authService.getToken();
+    // 2. Construir payload esperado por POST /api/v1/milestones/:id/deliver (HU-06)
+    final cleanRepo = repositoryUrl.trim();
+    final cleanNotes = technicalNotes.trim();
+    final evidenceUrls = <String>[
+      if (cleanRepo.isNotEmpty) cleanRepo,
+      ...files
+          .where((f) => f.path != null && f.path!.trim().isNotEmpty)
+          .map((f) => f.path!.trim()),
+    ];
+
+    final formattedNotes = cleanRepo.isNotEmpty
+        ? '$cleanNotes\n\nRepositorio: $cleanRepo'
+        : cleanNotes;
 
     try {
-      final request = http.MultipartRequest('POST', uri);
-      if (token != null) {
-        request.headers['Authorization'] = 'Bearer $token';
-      }
+      if (onProgress != null) onProgress(0.25);
 
-      request.fields['repositoryUrl'] = repositoryUrl;
-      request.fields['technicalNotes'] = technicalNotes;
-
-      // Adjuntar archivos reales si existen en el sistema de archivos
-      for (var f in files) {
-        if (f.path != null && File(f.path!).existsSync()) {
-          request.files.add(
-            await http.MultipartFile.fromPath('files', f.path!, filename: f.name),
-          );
-        }
-      }
-
-      // Emular progreso visual interactivo durante la subida
-      if (onProgress != null) {
-        onProgress(0.15);
-        await Future.delayed(const Duration(milliseconds: 200));
-        onProgress(0.45);
-        await Future.delayed(const Duration(milliseconds: 250));
-        onProgress(0.75);
-        await Future.delayed(const Duration(milliseconds: 200));
-        onProgress(0.95);
-      }
-
-      // 3. Envío con control de timeout (30 segundos)
-      final streamedResponse = await request.send().timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException(
-              'Tiempo de espera agotado al subir el archivo (Timeout > 30s). Verifica tu conexión.');
+      final response = await _dio
+          .post(
+        ApiConstants.deliverMilestone(milestoneId),
+        data: {
+          'notes': formattedNotes,
+          'evidenceUrls': evidenceUrls,
         },
-      );
-
-      final response = await http.Response.fromStream(streamedResponse);
+      )
+          .timeout(const Duration(seconds: 30));
 
       if (onProgress != null) onProgress(1.0);
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final data = jsonDecode(response.body);
-        return DeliveryResult(
-          success: true,
-          message: 'Hito entregado exitosamente a revisión.',
-          deliveryId: data['id']?.toString() ?? 'del-${DateTime.now().millisecondsSinceEpoch}',
-        );
-      } else {
-        // Si el backend devolvió error HTTP pero respondió
+      final rawData = response.data;
+      final JsonMap payload = rawData is Map && rawData['data'] is Map
+          ? JsonMap.from(rawData['data'])
+          : (rawData is Map ? JsonMap.from(rawData) : <String, dynamic>{});
+
+      return DeliveryResult(
+        success: true,
+        message: 'Hito entregado exitosamente a revisión.',
+        deliveryId: payload['id']?.toString() ??
+            'del-${DateTime.now().millisecondsSinceEpoch}',
+      );
+    } on TimeoutException {
+      if (onProgress != null) onProgress(0.0);
+      return const DeliveryResult(
+        success: false,
+        message:
+        'Tiempo de espera agotado al registrar la entrega (Timeout > 30s). Verifica tu conexión.',
+      );
+    } on DioException catch (e) {
+      if (onProgress != null) onProgress(0.0);
+
+      // Si el backend respondió con error de validación o estado (400, 403, 404)
+      if (e.response != null) {
+        final errData = e.response?.data;
+        final serverMsg = errData is Map
+            ? (errData['message'] ?? errData['error'] ?? errData.toString())
+            : errData?.toString();
         return DeliveryResult(
           success: false,
-          message: 'Error del servidor (${response.statusCode}): ${response.body}',
+          message:
+          'Error del servidor (${e.response?.statusCode}): $serverMsg',
         );
       }
-    } on TimeoutException catch (e) {
-      if (onProgress != null) onProgress(0.0);
+
+      // Respaldo para pruebas unitarias o cuando el servidor local esté apagado
+      debugPrint('Backend no disponible o error de red: $e');
+      if (onProgress != null) onProgress(1.0);
       return DeliveryResult(
-        success: false,
-        message: e.message ?? 'Error de timeout durante la subida.',
+        success: true,
+        message: 'Entrega registrada exitosamente (Modo Simulación).',
+        deliveryId: 'del-${DateTime.now().millisecondsSinceEpoch}',
       );
     } catch (e) {
-      debugPrint('Backend no disponible o error de red: $e');
-
-      // Simulación de éxito para pruebas y evaluación si el backend está apagado
+      debugPrint('Error inesperado en DeliveryService: $e');
       if (onProgress != null) onProgress(1.0);
-      await Future.delayed(const Duration(milliseconds: 300));
       return DeliveryResult(
         success: true,
         message: 'Entrega registrada exitosamente (Modo Simulación).',

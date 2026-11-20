@@ -35,33 +35,35 @@ class ApiConstants {
   // Endpoints de autenticación (API v1)
   static const String login = '$baseUrl/auth/login';
   static const String register = '$baseUrl/auth/register';
+  static const String googleAuth = '/auth/google';
   static const String refreshToken = '$baseUrl/auth/refresh-token';
   static const String logout = '$baseUrl/auth/logout';
   static const String me = '$baseUrl/auth/me';
 
-  // Endpoints de usuario / perfil
-  static const String profile = '$baseUrl/users/me/profile';
-  static const String updateAvatar = '$baseUrl/users/me/avatar';
+  // Perfil y Skills (src/routes/profile.routes.ts, skills.routes.ts)
+  static const String profile = '/users/me/profile';
+  static const String legacyProfile = '/profile';
+  static const String uploadAvatar = '/users/me/avatar';
+  static const String userSkills = '/users/me/skills';
+  static String deleteUserSkill(String identifier) =>
+      '/users/me/skills/${Uri.encodeComponent(identifier)}';
 
   // Endpoints de convocatorias
-  static const String convocatorias = '$emulatorBaseUrl/convocatorias';
-  static const String postulaciones = '$emulatorBaseUrl/postulaciones';
+  static const String projects = '/projects';
+  static String projectById(String id) => '/projects/$id';
 
-  // Endpoints HU-06: Entrega de hitos
-  static String milestoneDeliveries(String milestoneId) =>
-      '$emulatorBaseUrl/milestones/$milestoneId/deliveries';
+  // Postulaciones (src/presentation/routes/proposal.routes.ts)
+  static const String proposals = '/proposals';
 
-  // Endpoints HU-07: Aprobación de hitos
-  static String milestoneDetail(String milestoneId) =>
-      '$emulatorBaseUrl/milestones/$milestoneId';
-  static String approveMilestone(String milestoneId) =>
-      '$emulatorBaseUrl/milestones/$milestoneId/approve';
-  static String requestCorrections(String milestoneId) =>
-      '$emulatorBaseUrl/milestones/$milestoneId/adjustments';
+  // Contratos, Hitos y Entregas (src/presentation/routes/contract.routes.ts)
+  static const String contracts = '/contracts';
+  static String fundContract(String contractId) => '/contracts/$contractId/fund';
+  static String deliverMilestone(String milestoneId) => '/milestones/$milestoneId/deliver';
+  static String approveMilestone(String milestoneId) => '/milestones/$milestoneId/approve';
 
-  // Endpoints HU-14: Billetera
-  static const String wallet = '$emulatorBaseUrl/wallet';
-  static const String walletWithdraw = '$emulatorBaseUrl/wallet/withdraw';
+  // Billetera (src/presentation/routes/wallet.routes.ts)
+  static const String wallet = '/wallet';
+  static const String withdrawWallet = '/wallet/withdraw';
 
   // Obtiene la URL del servidor WebSocket/Socket.io eliminando el prefijo de API REST
   static String getSocketUrl([String? explicitBaseUrl]) {

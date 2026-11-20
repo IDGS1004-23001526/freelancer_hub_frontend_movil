@@ -11,6 +11,7 @@ import '../../widgets/avatar_image.dart';
 import '../../widgets/profile_menu_item.dart';
 import '../auth/onboarding_screen.dart';
 import '../chat/conversations_screen.dart';
+import '../contracts/contracts_screen.dart';
 import '../home/explorar_screen.dart';
 import '../payment/add_card_screen.dart';
 import 'edit_profile_screen.dart';
@@ -43,24 +44,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final blocUser = context.read<AuthBloc?>()?.state.user;
-    if (blocUser != null) {
-      _user = blocUser;
-      _isLoading = false;
-    } else {
-      _loadProfileData();
-    }
+    _loadProfileData();
   }
 
   Future<void> _loadProfileData() async {
-    final fetched = await _profileService.fetchProfile();
-    if (fetched != null && mounted) {
-      setState(() {
-        _user = fetched;
-        _isLoading = false;
-      });
-    } else {
-      if (mounted) setState(() => _isLoading = false);
+    try {
+      AuthBloc? authBloc;
+      try {
+        authBloc = BlocProvider.of<AuthBloc>(context, listen: false);
+      } catch (_) {
+        authBloc = null;
+      }
+
+      final blocUser = authBloc?.state.user;
+      if (blocUser != null && mounted) {
+        setState(() => _user = blocUser);
+      }
+
+      final fetched = await _profileService.fetchProfile();
+      if (fetched != null && mounted) {
+        setState(() => _user = fetched);
+      }
+    } catch (e) {
+      debugPrint('Error cargando perfil: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -147,13 +157,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             color: Colors.white,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.check_circle, color: AppColors.primary, size: 18),
+                          child: const Icon(Icons.check_circle,
+                              color: AppColors.primary, size: 18),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      _user.fullName.isNotEmpty ? _user.fullName : 'Usuario FreelancerHub',
+                      _user.fullName.isNotEmpty
+                          ? _user.fullName
+                          : 'Usuario FreelancerHub',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
                         fontSize: 18,
@@ -163,13 +176,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(
                         color: AppColors.primaryLight,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        isClient ? 'CLIENTE CONTRATANTE' : 'PROFESIONAL FREELANCER',
+                        isClient
+                            ? 'CLIENTE CONTRATANTE'
+                            : 'PROFESIONAL FREELANCER',
                         style: GoogleFonts.poppins(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
@@ -182,11 +198,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.email_outlined, size: 13, color: AppColors.textSecondary),
+                          const Icon(Icons.email_outlined,
+                              size: 13, color: AppColors.textSecondary),
                           const SizedBox(width: 4),
                           Text(
                             _user.email,
-                            style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textSecondary),
+                            style: GoogleFonts.poppins(
+                                fontSize: 12, color: AppColors.textSecondary),
                           ),
                         ],
                       ),
@@ -196,11 +214,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.phone_outlined, size: 13, color: AppColors.textSecondary),
+                          const Icon(Icons.phone_outlined,
+                              size: 13, color: AppColors.textSecondary),
                           const SizedBox(width: 4),
                           Text(
                             _user.phone,
-                            style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textSecondary),
+                            style: GoogleFonts.poppins(
+                                fontSize: 12, color: AppColors.textSecondary),
                           ),
                         ],
                       ),
@@ -209,11 +229,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
+                        const Icon(Icons.location_on_outlined,
+                            size: 14, color: AppColors.textSecondary),
                         const SizedBox(width: 4),
                         Text(
-                          _user.location.isNotEmpty ? _user.location : 'Sin ubicación especificada',
-                          style: GoogleFonts.poppins(fontSize: 12, color: AppColors.textSecondary),
+                          _user.location.isNotEmpty
+                              ? _user.location
+                              : 'Sin ubicación especificada',
+                          style: GoogleFonts.poppins(
+                              fontSize: 12, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
@@ -235,8 +259,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         alignment: WrapAlignment.center,
                         spacing: 6,
                         runSpacing: 4,
-                        children: _user.skills.map((s) => Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        children: _user.skills
+                            .map((s) => Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: AppColors.surface,
                             border: Border.all(color: AppColors.border),
@@ -244,9 +270,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           child: Text(
                             s,
-                            style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textPrimary),
+                            style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: AppColors.textPrimary),
                           ),
-                        )).toList(),
+                        ))
+                            .toList(),
                       ),
                     ],
                     const SizedBox(height: 16),
@@ -258,13 +287,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         onPressed: _navigateToEditProfile,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24)),
                           elevation: 0,
                         ),
-                        icon: const Icon(Icons.edit, size: 16, color: Colors.white),
+                        icon: const Icon(Icons.edit,
+                            size: 16, color: Colors.white),
                         label: Text(
                           'Editar Perfil',
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: Colors.white),
+                          style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600, color: Colors.white),
                         ),
                       ),
                     ),
@@ -274,18 +306,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const Icon(Icons.verified_user_outlined, size: 14, color: AppColors.textSecondary),
+                  const Icon(Icons.verified_user_outlined,
+                      size: 14, color: AppColors.textSecondary),
                   const SizedBox(width: 6),
                   Text(
                     'Pagos protegidos mediante custodia Escrow SSL 256-bit',
-                    style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textSecondary),
+                    style: GoogleFonts.poppins(
+                        fontSize: 11, color: AppColors.textSecondary),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
               Text(
                 'Configuración y Cuenta',
-                style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary),
               ),
               const SizedBox(height: 10),
               Material(
@@ -308,7 +345,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const AddCardScreen()),
+                          MaterialPageRoute(
+                              builder: (_) => const AddCardScreen()),
                         );
                       },
                     ),
@@ -342,21 +380,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (!context.mounted) return;
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-                      (route) => false,
+                      MaterialPageRoute(
+                          builder: (_) => const OnboardingScreen()),
+                          (route) => false,
                     );
                   },
-                  icon: const Icon(Icons.logout, color: Colors.redAccent, size: 18),
+                  icon: const Icon(Icons.logout,
+                      color: Colors.redAccent, size: 18),
                   label: Text(
                     'Cerrar sesión',
-                    style: GoogleFonts.poppins(color: Colors.redAccent, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.poppins(
+                        color: Colors.redAccent, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
               Center(
                 child: Text(
                   'Versión 2.4.1 (Build 184) • Plataforma Freelance',
-                  style: GoogleFonts.poppins(fontSize: 11, color: AppColors.textSecondary),
+                  style: GoogleFonts.poppins(
+                      fontSize: 11, color: AppColors.textSecondary),
                 ),
               ),
               const SizedBox(height: 16),
@@ -374,6 +416,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
             return;
           }
+          if (index == 1) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ContractsScreen()),
+            );
+            return;
+          }
           if (index == 2) {
             Navigator.push(
               context,
@@ -388,9 +437,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: AppColors.surface,
         type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), label: 'Explorar'),
-          BottomNavigationBarItem(icon: Icon(Icons.work_outline), label: 'Postulaciones'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.explore_outlined), label: 'Explorar'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.work_outline), label: 'Postulaciones'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
