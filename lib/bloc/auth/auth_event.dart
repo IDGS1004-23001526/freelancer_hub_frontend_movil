@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../models/user_profile.dart';
 
 abstract class AuthEvent extends Equatable {
   const AuthEvent();
@@ -65,6 +66,20 @@ class AuthLoginSubmitted extends AuthEvent {
 
   @override
   List<Object?> get props => [email, password];
+}
+
+/// Evento para autenticación federada con Google (Login o Registro).
+class AuthGoogleSubmitted extends AuthEvent {
+  final String? role;
+  final String? explicitIdToken;
+
+  const AuthGoogleSubmitted({
+    this.role,
+    this.explicitIdToken,
+  });
+
+  @override
+  List<Object?> get props => [role, explicitIdToken];
 }
 
 /// Evento para verificar el estado de la sesión actual.

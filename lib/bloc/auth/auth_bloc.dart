@@ -13,6 +13,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthRoleSelected>(_onRoleSelected);
     on<AuthRegisterSubmitted>(_onRegisterSubmitted);
     on<AuthLoginSubmitted>(_onLoginSubmitted);
+    on<AuthGoogleSubmitted>(_onGoogleSubmitted);
     on<AuthSessionChecked>(_onSessionChecked);
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthProfileUpdated>((event, emit) {
@@ -103,6 +104,42 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           status: AuthStatus.error,
           errorMessage: result.message ??
               'Credenciales incorrectas o error en el servidor.',
+        ),
+      );
+    }
+  }
+
+  Future<void> _onGoogleSubmitted(
+    AuthGoogleSubmitted event,
+    Emitter<AuthState> emit,
+  ) async {
+    final role = (event.role ?? state.selectedRole).toUpperCase();
+    emit(
+      state.copyWith(
+        status: AuthStatus.loading,
+        selectedRole: role,
+        clearError: true,
+      ),
+    );
+
+    final result = await _authService.googleAuthWithResult(
+      role: role,
+      explicitIdToken: event.explicitIdToken,
+    );
+
+    if (result.success) {
+      emit(
+        state.copyWith(
+          status: AuthStatus.authenticated,
+          user: result.user,
+          clearError: true,
+        ),
+      );
+    } else {
+      emit(
+        state.copyWith(
+          status: AuthStatus.error,
+          errorMessage: result.message ?? 'Error al autenticar con Google.',
         ),
       );
     }

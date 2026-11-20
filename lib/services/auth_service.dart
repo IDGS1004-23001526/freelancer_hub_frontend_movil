@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_constants.dart';
 import '../models/user_profile.dart';
 import 'api_client.dart';
+import 'google_sign_in_service.dart';
 import 'notification_socket_service.dart';
 
 /// Resultado detallado de una operación de autenticación (Login / Registro).
@@ -117,6 +118,9 @@ class AuthService {
       }
     }
     NotificationSocketService.instance.disconnect();
+    try {
+      await GoogleSignInService.instance.signOut();
+    } catch (_) {}
     await _storage.delete(key: 'jwt_token');
     await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_profile');
@@ -255,6 +259,111 @@ class AuthService {
       return const AuthResult(
         success: false,
         message: 'No se pudo conectar con el servidor de autenticación.',
+      );
+    }
+  }
+
+  /// Autentica o registra al usuario mediante Google ID Token en el endpoint `/auth/google`.
+  /// Si se especifica [role], se asocia al usuario si es una cuenta nueva (default: FREELANCER).
+  Future<AuthResult> googleAuthWithResult({
+    String? role,
+    String? explicitIdToken,
+  }) async {
+    try {
+      final String? idToken;
+      if (explicitIdToken != null && explicitIdToken.isNotEmpty) {
+        idToken = explicitIdToken;
+      } else {
+        idToken = await GoogleSignInService.instance.getIdToken();
+      }
+
+      if (idToken == null) {
+        return const AuthResult(
+          success: false,
+          message: 'Inicio de sesión con Google cancelado.',
+        );
+      }
+
+      final normalizedRole = (role != null && role.isNotEmpty)
+          ? role.trim().toUpperCase()
+          : 'FREELANCER';
+
+      final response = await _postToEndpoint(
+        endpointPath: '/auth/google',
+        body: {
+          'idToken': idToken,
+          'role': normalizedRole,
+        },
+      );
+
+      final Map<String, dynamic> decoded =
+          response.body.isNotEmpty ? jsonDecode(response.body) : {};
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final payload = decoded['data'] is Map<String, dynamic>
+            ? decoded['data'] as Map<String, dynamic>
+            : decoded;
+
+        final token =
+            payload['accessToken'] ?? payload['token'] ?? payload['jwt'];
+        final refreshToken = payload['refreshToken'];
+
+        if (token != null) {
+          await saveToken(token.toString());
+        }
+        if (refreshToken != null) {
+          await _storage.write(
+              key: 'refresh_token', value: refreshToken.toString());
+        }
+
+        final userMap = payload['user'] is Map<String, dynamic>
+            ? payload['user'] as Map<String, dynamic>
+            : payload;
+        final rawProfile = UserProfile.fromJson(userMap);
+        final cached = await getCachedUserProfile();
+
+        final normalizedEmail = rawProfile.email.trim().toLowerCase();
+        final persistedAvatar =
+            await _storage.read(key: 'saved_avatar_$normalizedEmail');
+
+        final effectiveAvatar = (rawProfile.avatarUrl != null &&
+                rawProfile.avatarUrl!.isNotEmpty)
+            ? rawProfile.avatarUrl
+            : (cached?.avatarUrl ?? persistedAvatar);
+
+        final userProfile = rawProfile.copyWith(
+          role: _formatRoleLabel(rawProfile.role),
+          location: rawProfile.location.isNotEmpty
+              ? rawProfile.location
+              : (cached?.location ?? ''),
+          bio: rawProfile.bio.isNotEmpty ? rawProfile.bio : (cached?.bio ?? ''),
+          avatarUrl: effectiveAvatar,
+          skills: rawProfile.skills.isNotEmpty
+              ? rawProfile.skills
+              : (cached?.skills ?? const []),
+        );
+
+        await saveUserProfile(userProfile);
+
+        return AuthResult(
+          success: true,
+          user: userProfile,
+          token: token?.toString(),
+          message: 'Autenticación con Google exitosa.',
+        );
+      }
+
+      final errorMsg = _extractErrorMessage(
+        decoded,
+        'Error al autenticar con la cuenta de Google.',
+      );
+      return AuthResult(success: false, message: errorMsg);
+    } catch (e) {
+      return AuthResult(
+        success: false,
+        message: e is Exception
+            ? 'Error al conectar con Google: ${e.toString().replaceAll('Exception: ', '')}'
+            : 'No se pudo completar la autenticación con Google.',
       );
     }
   }
